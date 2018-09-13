@@ -8,6 +8,6 @@ if [ "$SERVER" == "REED" ]; then
     ELIST="$ELIST,slaulederkind@mcw.edu"
 fi
 
-$APPDIR/bin/run.sh 2>&1
+$APPDIR/_run.sh 2>&1
 
 mailx -s "[$SERVER] CTD rejected annotations" $ELIST < $APPDIR/logs/rejectedAnnotsSummary.log
