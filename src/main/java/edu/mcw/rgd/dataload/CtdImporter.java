@@ -1,0 +1,575 @@
+package edu.mcw.rgd.dataload;
+
+import edu.mcw.rgd.dao.spring.StringMapQuery;
+import edu.mcw.rgd.datamodel.*;
+import edu.mcw.rgd.datamodel.ontology.Annotation;
+import edu.mcw.rgd.datamodel.ontologyx.Term;
+import edu.mcw.rgd.pipelines.*;
+import edu.mcw.rgd.process.Utils;
+import org.apache.commons.collections.map.MultiValueMap;
+import org.apache.log4j.Logger;
+
+import java.util.*;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * @author mtutaj
+ * @since 3/21/12
+ * Run entire import machinery.
+ * <p>
+ * Gene-chemical interactions file CTD_chem_gene_ixns.tsv must have the following format (valid as of June 2012):
+ * <pre>
+ * Fields:
+ * [0] ChemicalName
+ * [1] ChemicalID (MeSH identifier)
+ * [2] CasRN (CAS Registry Number)
+ * [3] GeneSymbol
+ * [4] GeneID (NCBI Gene identifier)
+ * [5] GeneForms ('|'-delimited list) New!
+ * [6] Organism (scientific name)
+ * [7] OrganismID (NCBI Taxonomy identifier)
+ * [8] Interaction
+ * [9] InteractionActions ('|'-delimited list)
+ * [10]PubmedIDs ('|'-delimited list)
+ * </pre>
+ */
+public class CtdImporter {
+
+    private final Logger logStatus = Logger.getLogger("status");
+    private final Logger logDeletedAnnots = Logger.getLogger("deletedAnnots");
+    private final Logger logInsertedAnnots = Logger.getLogger("insertedAnnots");
+    private final Logger logUpdatedAnnots = Logger.getLogger("updatedAnnots");
+    private final Logger logMultiMatch = Logger.getLogger("multiMatch");
+    private final Logger logNoMatch = Logger.getLogger("noMatch");
+    private final Logger logUpdatedAnnotNotes = Logger.getLogger("updatedAnnotNotes");
+    private final Logger logDebug = Logger.getLogger("debug");
+
+    private String aspect;
+    private int obsoleteAnnotLimit;
+    private int owner;
+    private String dataSource;
+    private int refRgdId;
+    private int processingQueueSize;
+
+    private CtdDAO dao = new CtdDAO();
+    private CtdParser parser;
+    private String version;
+
+    private Date startTimeStamp; // timestamp when the pipeline was started
+
+    // CHEBI terms keyed by CasRN -- note: there could be multiple terms for one CasRN
+    final private MultiValueMap mapCasRNToChebiTerm = new MultiValueMap();
+
+    // map of MESH ids to CHEBI terms
+    final private MultiValueMap mapMeshToChebi = new MultiValueMap();
+
+    final private ConcurrentHashMap<String, List<Annotation>> incomingAnnots = new ConcurrentHashMap<>();
+    final private ConcurrentHashMap<String, List<Annotation>> inRgdAnnots = new ConcurrentHashMap<>();
+
+    /**
+     * run entire import
+     * <ol>
+     *     <li>load chemical gene interaction types from CTD_chem_gene_ixn_types.tsv file</li>
+     *     <li>load chemical gene interactions from CTD_chem_gene_ixns.tsv file</li>
+     *     <li>load chemicals from CTD_chemicals.tsv.gz file</li>
+     *     <li>match every chemical by CasRN against CHEBI ontology</li>
+     * </ol>
+     * @throws Exception exception
+     */
+    public void run() throws Exception {
+
+        System.out.println(getVersion());
+
+        startTimeStamp = new Date();
+
+        PipelineManager manager = new PipelineManager();
+
+        dumpTotalNotesLength("AT_BEGIN");
+
+        loadCasRNsMappedToChebiAccIds(manager.getSession());
+
+        loadMeshMappedToChebiAccIds(manager.getSession());
+
+        // to avoid running out of memory
+        final int recordQueueSize = getProcessingQueueSize();
+
+        // first thread group: parse all chemicals
+        manager.addPipelineWorkgroup(parser, "PP", 1, recordQueueSize);
+
+        manager.addPipelineWorkgroup(new RecordProcessor(){
+
+            // map of NCBI gene ids to Gene objects for speedup
+            final Map<String, Gene> mapGenes = Collections.synchronizedMap(new HashMap<String, Gene>());
+
+            @Override
+            public void process(PipelineRecord pipelineRecord) throws Exception {
+
+                CtdRecord rec = (CtdRecord) pipelineRecord;
+
+                rec.initQC();
+
+                Gene oneGene;
+
+                synchronized(mapGenes) {
+                    // match chemical by NCBI GeneId with a gene
+                    rec.gene = null;
+                    oneGene = null;
+
+                    // consult gene cache first
+                    if( mapGenes.containsKey(rec.interaction.getGeneID()) ) {
+                        Gene gene = mapGenes.get(rec.interaction.getGeneID());
+                        if( gene.getSpeciesTypeKey()!=rec.interaction.getSpeciesTypeKey() ) {
+                            getSession().incrementCounter("SPECIES TYPE MIXUP", 1);
+                        }
+                        else
+                            rec.gene = gene;
+                    }
+
+                    if( rec.gene==null ) {
+                        List<Gene> genes = dao.getActiveGenesByXdbId(XdbId.XDB_KEY_NCBI_GENE, rec.interaction.getGeneID());
+                        if( genes.isEmpty() ) {
+                            // no match by NCBI geneid -- try to match by gene symbol
+                            genes = dao.getAllGenesBySymbol(rec.interaction.getGeneSymbol(), rec.interaction.getSpeciesTypeKey());
+                            if( genes.isEmpty() ) {
+                                getSession().incrementCounter("NO MATCH BY NCBI GENEID AND BY GENE SYMBOL", 1);
+                                logNoMatch.info("GENEID="+rec.interaction.getGeneID()+" SYMBOL="+rec.interaction.getGeneSymbol()+" species="+rec.interaction.getSpeciesTypeKey());
+                            }
+                        }
+                        else if( genes.size()==1 ) {
+                            mapGenes.put(rec.interaction.getGeneID(), genes.get(0));
+                        }
+
+                        if( genes.size()>1 ) {
+                            // multiple genes in RGD -- try to match by symbol
+                            String msg = "GENEID="+rec.interaction.getGeneID()+" SYMBOL="+rec.interaction.getGeneSymbol()+" species="+rec.interaction.getSpeciesTypeKey();
+                            for( Gene gene: genes ) {
+                                msg += "\n   RGDID="+gene.getRgdId()+" SYMBOL="+gene.getSymbol();
+                            }
+
+                            for( Gene gene: genes ) {
+                                if( Utils.stringsAreEqualIgnoreCase(gene.getSymbol(), rec.interaction.getGeneSymbol()) ) {
+                                    rec.gene = gene;
+                                    getSession().incrementCounter("MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL", 1);
+                                    break;
+                                }
+                            }
+                            if( rec.gene==null ) {
+                                getSession().incrementCounter("MULTIMATCH", 1);
+                            }
+                            else {
+                                msg += "\n   MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL";
+                            }
+                            logMultiMatch.info(msg);
+                        }
+                        else if( genes.size()==1 ){
+                            oneGene = genes.get(0);
+                        }
+                    }
+                }
+
+                if( oneGene!=null ) {
+                    if (oneGene.getSpeciesTypeKey() != rec.interaction.getSpeciesTypeKey()) {
+                        // interaction species is different than gene-from-GeneId species!
+                        // find the ortholog
+                        oneGene = dao.getOrtholog(oneGene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
+                    }
+                    if (oneGene != null) {
+                        rec.gene = oneGene;
+                        getSession().incrementCounter("SINGLE MATCH", 1);
+                    } else {
+                        getSession().incrementCounter("SPECIES TYPE MIXUP", 1);
+                    }
+                }
+
+                // load ortholog genes
+                if( rec.gene!=null ) {
+                    List<Gene> homologs = new ArrayList<>(dao.getHomologs(rec.gene.getRgdId()));
+                    homologs.add(rec.gene);
+                    rec.homologs = homologs;
+                }
+            }
+        }, "QC", 3, recordQueueSize);
+
+        // add pipeline for making annotations
+        manager.addPipelineWorkgroup(new RecordProcessor(){
+
+            public void process(PipelineRecord pipelineRecord) throws Exception {
+
+                CtdRecord rec = (CtdRecord) pipelineRecord;
+
+                // compute qualifiers
+                String qualifier;
+                if( rec.interaction.getInteractionActions().indexOf('|')>0 ) {
+                    qualifier = "multiple interactions";
+                }
+                else {
+                    qualifier = rec.interaction.getInteractionActions().replace('^',' ');
+                }
+
+                // for every matching CasRN, create incoming annotations
+                Collection<Term> terms = rec.chemical.getCasRN()==null ? null : (Collection<Term>) mapCasRNToChebiTerm.getCollection(rec.chemical.getCasRN());
+                if( terms==null || terms.isEmpty() ) {
+                    terms = (Collection<Term>) mapMeshToChebi.getCollection(rec.chemical.getChemicalID());
+                }
+                if( (terms==null || terms.isEmpty()) && rec.chemical.chebiTerms!=null ) {
+                    terms = rec.chemical.chebiTerms;
+                }
+
+                for( Term term: terms ) {
+
+                    if( !dao.ensureChebiTermHasMeshSynonym(term.getAccId(), rec.chemical.getChemicalID()) ) {
+                        getSession().incrementCounter("XREF_MESH_SYNONYMS_ADDED", 1);
+                    }
+
+                    if( rec.homologs!=null ) {
+                        for( Gene gene: rec.homologs ) {
+                            createAnnotations(rec, gene, term, qualifier);
+                        }
+                    }
+                }
+            }
+
+            void createAnnotations(CtdRecord rec, Gene gene, Term term, String qualifier) throws Exception {
+
+                Gene sourceGene = rec.gene;
+                String evidence = sourceGene.getRgdId()==gene.getRgdId() ? "EXP" : "ISO";
+                String notes = rec.interaction.getInteraction();
+                String xrefSource = rec.interaction.getPubmedIds();
+
+                Annotation annot = new Annotation();
+                annot.setAnnotatedObjectRgdId(gene.getRgdId());
+                annot.setAspect(getAspect());
+                annot.setCreatedBy(getOwner());
+                annot.setLastModifiedBy(getOwner());
+                annot.setDataSrc(getDataSource());
+                annot.setEvidence(evidence);
+                annot.setCreatedDate(new Date());
+                annot.setLastModifiedDate(annot.getCreatedDate());
+                annot.setObjectName(gene.getName());
+                annot.setObjectSymbol(gene.getSymbol());
+                annot.setRgdObjectKey(RgdId.OBJECT_KEY_GENES);
+                annot.setRefRgdId(getRefRgdId());
+                annot.setTerm(term.getTerm());
+                annot.setTermAcc(term.getAccId());
+                annot.setXrefSource(xrefSource);
+                annot.setQualifier(qualifier);
+                annot.setNotes(notes);
+
+                // sourceGene is the gene from which the annotation originally came from;
+                // desired piece of info in ortholog annotations
+                if( sourceGene.getRgdId()!=gene.getRgdId() ) {
+                    annot.setWithInfo("RGD:"+sourceGene.getRgdId());
+                }
+
+                // add this annotation to incoming annotations
+                rec.incomingAnnots.add(annot);
+            }
+        }, "AN", 5, recordQueueSize);
+
+        // add pipeline for loading annotations
+        manager.addPipelineWorkgroup(new RecordProcessor(){
+
+            public void process(PipelineRecord pipelineRecord) throws Exception {
+
+                CtdRecord rec = (CtdRecord) pipelineRecord;
+                logDebug.debug(rec.getRecNo() + ". ");
+
+                // are there any annotations to be processed?
+                if( rec.incomingAnnots.isEmpty() )
+                    return;
+
+                // process all incoming annotations
+                for( int i=0; i<rec.incomingAnnots.size(); i++ ) {
+
+                    Annotation incomingAnnot = rec.incomingAnnots.get(i);
+                    String annotKey = CtdAnnotNotesManager.computeAnnotKey(incomingAnnot);
+                    List<Annotation> annots = incomingAnnots.get(annotKey);
+                    if( annots==null ) {
+                        annots = Collections.synchronizedList(new ArrayList<Annotation>());
+                        incomingAnnots.put(annotKey, annots);
+                    }
+                    annots.add(incomingAnnot);
+
+                    List<Annotation> annotsInRgd = inRgdAnnots.get(annotKey);
+                    if( annotsInRgd==null ) {
+                        annotsInRgd = dao.getAnnotationsByAnnot(incomingAnnot);
+                        inRgdAnnots.put(annotKey, annotsInRgd);
+                    }
+                }
+            }
+        }, "DL", 5, 0);
+
+        // download file with gene - chemical interactions
+        parser.downloadChemicals(mapCasRNToChebiTerm, mapMeshToChebi, dao);
+
+        manager.run();
+
+        loadAnnots(manager);
+
+        deleteObsoleteAnnotations(manager.getSession());
+
+        dumpTotalNotesLength("AT_FINISH");
+
+        // dump counter statistics
+        manager.dumpCounters(logStatus);
+        manager.getSession().dumpCounters(System.out);
+        manager.dumpCounters(logDebug);
+    }
+
+    void loadAnnots(PipelineManager manager) throws Exception {
+        long time0 = System.currentTimeMillis();
+
+        dumpTotalNotesLength("BEFORE_UPDATE_NOTES_XREFSRC");
+
+        manager.dumpCounters(logDebug);
+        System.out.println("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
+        logDebug.debug("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
+        int i=0, annotCount=0;
+
+        for( Map.Entry<String, List<Annotation>> entry: incomingAnnots.entrySet() ) {
+            List<Annotation> annots = entry.getValue();
+            annotCount += annots.size();
+            logDebug.debug((++i)+". "+annotCount);
+            process(manager.getSession(), annots, entry.getKey());
+        }
+        logDebug.debug("INCOMING ANNOT DONE");
+        manager.dumpCounters(logDebug);
+
+        dumpTotalNotesLength("AFTER_UPDATE_NOTES_XREFSRC");
+
+        System.out.println("LOAD ANNOTS OK -- elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
+    }
+
+    void process(PipelineSession session, List<Annotation> incomingAnnots, String annotKey) throws Exception {
+
+        // double check
+        if( incomingAnnots.isEmpty() ) {
+            return;
+        }
+
+        List<Annotation> mergedIncomingAnnots = mergeAnnots(incomingAnnots, 4000);
+
+
+        List<Annotation> annotsInRgd = inRgdAnnots.get(annotKey);
+
+        for( Annotation annot: mergedIncomingAnnots ) {
+            // load annots in RGD
+            if (annotsInRgd.isEmpty()) {
+                dao.insertAnnotation(annot);
+                logInsertedAnnots.info("inserted RGDID:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " " + annot.getNotes());
+
+                // annotation has been inserted
+                session.incrementCounter("ANNOTATIONS_" + annot.getEvidence() + "_INSERTED", 1);
+                return;
+            }
+
+            logUpdatedAnnots.info("RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource());
+            session.incrementCounter("ANNOTATIONS_" + annot.getEvidence() + "_MATCHED", 1);
+
+            // find the annot in RGD with same xrefSource, if possible, for update
+            Annotation annotInRgd = annotsInRgd.get(0);
+            for (Annotation ann : annotsInRgd) {
+                if (Utils.stringsAreEqual(ann.getXrefSource(), annot.getXrefSource())) {
+                    annotInRgd = ann;
+                    break;
+                }
+            }
+            annotsInRgd.remove(annotInRgd);
+
+            // check if annotation notes and/or xref_source has to be updated
+            if (Utils.stringsAreEqualIgnoreCase(annot.getNotes(), annotInRgd.getNotes())
+                    && Utils.stringsAreEqualIgnoreCase(annot.getXrefSource(), annotInRgd.getXrefSource())) {
+
+                // the annotation is up-to-date
+                dao.updateLastModified(annotInRgd.getKey());
+                session.incrementCounter("ANNOTATIONS_UPDATED_TIME", 1);
+            } else {
+                // update notes and xref_source of the annotation
+
+                logUpdatedAnnotNotes.info("RGDID:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " NOTESLEN=" + annot.getNotes().length()
+                        + "\n OLD:" + annotInRgd.getXrefSource() + " - " + annotInRgd.getNotes()
+                        + "\n NEW:" + annot.getXrefSource() + " - " + annot.getNotes());
+
+                dao.updateAnnotationNotesAndXRefSource(annotInRgd.getKey(), annot.getNotes(), annot.getXrefSource());
+                session.incrementCounter("ANNOTATIONS_UPDATED_TIME_NOTES_XREFSRC", 1);
+            }
+        }
+    }
+
+    List<Annotation> mergeAnnots(List<Annotation> incomingAnnots, int maxXRefSourceLen) throws Exception {
+
+        List<Annotation> mergedAnnots = new ArrayList<>();
+
+        // merge notes and xref_source for incoming annots
+        boolean processNextSplit = true;
+        for( int splits=1; processNextSplit; splits++ ) {
+
+            if( splits>1 ) {
+                System.out.println("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
+                    +" "+incomingAnnots.get(0).getTermAcc()+" "+incomingAnnots.get(0).getTerm());
+            }
+            mergedAnnots.clear();
+            processNextSplit = false; // optimistically assume we can merge annotations in the current split (99% true)
+
+            int annotsInSplit = 1 + (incomingAnnots.size()/splits);
+
+            for( int i=0; i<incomingAnnots.size(); i+=annotsInSplit ) {
+                int toIndex = i+annotsInSplit;
+                if( toIndex>incomingAnnots.size() ) {
+                    toIndex = incomingAnnots.size();
+                }
+                Annotation annot = mergeAnnots(incomingAnnots.subList(i, toIndex));
+                if( annot.getXrefSource().length()<=maxXRefSourceLen ) {
+                    mergedAnnots.add(annot);
+                } else {
+                    processNextSplit = true;
+                    break; // too many PMIDs in XREF_SOURCE
+                }
+            }
+        }
+        return mergedAnnots;
+    }
+
+    Annotation mergeAnnots(List<Annotation> incomingAnnots) throws Exception {
+
+        Annotation result = (Annotation) incomingAnnots.get(0).clone();
+
+        Set<String> noteSet = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Set<String> pmidSet = new TreeSet<>();
+        for (Annotation ann : incomingAnnots) {
+
+            // multiple notes are split by "; "
+            String notes = ann.getNotes();
+            if (notes != null && !notes.isEmpty()) {
+                if (notes.contains("; ")) {
+                    System.out.println("**** NOTES CONTAINS '; '");
+                }
+                Collections.addAll(noteSet, notes.split("; "));
+            }
+
+            // multiple PMIDs are separated by '|'
+            String xrefSrc = ann.getXrefSource();
+            if (xrefSrc != null && !xrefSrc.isEmpty()) {
+                Collections.addAll(pmidSet, xrefSrc.split("[\\|]"));
+            }
+        }
+        result.setNotes(Utils.concatenate(noteSet, "; "));
+        result.setXrefSource(Utils.concatenate(pmidSet, "|"));
+        return result;
+    }
+
+    void deleteObsoleteAnnotations(PipelineSession session) throws Exception {
+
+        List<Annotation> obsoleteAnnotations = dao.getAnnotationsModifiedBeforeTimestamp(getOwner(), startTimeStamp);
+        if( obsoleteAnnotations.size() > getObsoleteAnnotLimit() ) {
+
+            String msg = "*******************************\n" +
+                "There are more obsolete annotations ("+obsoleteAnnotations.size()+
+                " than the built-in delete limit of "+getObsoleteAnnotLimit()+
+                "; DELETE ABORTED!\n" +
+                "******************************\n";
+            System.out.println(msg);
+            logStatus.warn(msg);
+            session.incrementCounter("OBSOLETE_ANNOTATIONS", obsoleteAnnotations.size());
+            return;
+        }
+
+        for( Annotation obsoleteAnnot: obsoleteAnnotations ) {
+            logDeletedAnnots.info("DELETE " + obsoleteAnnot.dump("|"));
+            session.incrementCounter("ANNOTATIONS_"+obsoleteAnnot.getEvidence() + "_DELETED", 1);
+        }
+
+        dao.deleteAnnotations(obsoleteAnnotations);
+    }
+
+    void loadCasRNsMappedToChebiAccIds(PipelineSession session) throws Exception {
+
+        for( StringMapQuery.MapPair pair: dao.getChebiSynonymsWithCasRN() ) {
+
+            mapCasRNToChebiTerm.put(pair.stringValue, dao.getTermByAccId(pair.keyValue));
+        }
+
+        session.incrementCounter("CHEBI_TERMS_WITH_CASRN", mapCasRNToChebiTerm.size());
+        session.incrementCounter("CHEBI_TERMS_CASRN_COUNT", mapCasRNToChebiTerm.totalSize());
+    }
+
+    void loadMeshMappedToChebiAccIds(PipelineSession session) throws Exception {
+
+        for( StringMapQuery.MapPair pair: dao.getChebiSynonymsWithMesh() ) {
+
+            mapMeshToChebi.put(pair.stringValue, dao.getTermByAccId(pair.keyValue));
+        }
+
+        session.incrementCounter("CHEBI_TERMS_WITH_MESH", mapMeshToChebi.size());
+        session.incrementCounter("CHEBI_TERMS_MESH_COUNT", mapMeshToChebi.totalSize());
+    }
+
+    void dumpTotalNotesLength(String statName) throws Exception {
+        long totalLength = dao.getTotalNotesLengthForChebiAnnotations();
+        logStatus.info("TOTAL_NOTES_LENGTH_"+statName+": "+Utils.formatThousands(totalLength)+" bytes");
+
+        totalLength = dao.getTotalXRefSourceLengthForChebiAnnotations();
+        logStatus.info("TOTAL_XREF_SOURCE_LENGTH_"+statName+": "+Utils.formatThousands(totalLength)+" bytes");
+    }
+
+    public void setAspect(String aspect) {
+        this.aspect = aspect;
+    }
+
+    public String getAspect() {
+        return aspect;
+    }
+
+    public void setOwner(int owner) {
+        this.owner = owner;
+    }
+
+    public int getOwner() {
+        return owner;
+    }
+
+    public void setDataSource(String dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    public String getDataSource() {
+        return dataSource;
+    }
+
+    public void setRefRgdId(int refRgdId) {
+        this.refRgdId = refRgdId;
+    }
+
+    public int getRefRgdId() {
+        return refRgdId;
+    }
+
+    public void setObsoleteAnnotLimit(int obsoleteAnnotLimit) {
+        this.obsoleteAnnotLimit = obsoleteAnnotLimit;
+    }
+
+    public int getObsoleteAnnotLimit() {
+        return obsoleteAnnotLimit;
+    }
+
+    public void setProcessingQueueSize(int processingQueueSize) {
+        this.processingQueueSize = processingQueueSize;
+    }
+
+    public int getProcessingQueueSize() {
+        return processingQueueSize;
+    }
+
+    public void setParser(CtdParser parser) {
+        this.parser = parser;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+}
