@@ -1,7 +1,7 @@
 <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
 	<bean id="manager" class="edu.mcw.rgd.dataload.CtdManager">
-        <property name="version" value="--CTD Chemical Drug Interactions pipeline -- v. 1.3.10; build Sep 13, 2018 --" />
+        <property name="version" value="--CTD Chemical Drug Interactions pipeline -- v. 1.3.11; build Feb 19, 2019 --" />
         <property name="importer" ref="ctdImporter" />
 	</bean>
 

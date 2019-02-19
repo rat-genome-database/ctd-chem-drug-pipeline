@@ -1,3 +1,6 @@
+v. 1.3.11, build Feb 19, 2019
+  - updated dependencies
+
 v. 1.3.10, build Sep 13, 2018
   - moved from subversion to github
 
