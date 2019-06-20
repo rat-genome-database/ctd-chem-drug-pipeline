@@ -1,3 +1,6 @@
+2019-06-19
+  sped up the annotation loading part
+   
 v. 1.3.11, build Feb 19, 2019
   - updated dependencies
 

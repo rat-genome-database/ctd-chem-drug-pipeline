@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 import java.util.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author mtutaj
@@ -54,7 +55,7 @@ public class CtdImporter {
 
     private CtdDAO dao = new CtdDAO();
     private CtdParser parser;
-    private String version;
+    private int maxXrefSourceLength;
 
     private Date startTimeStamp; // timestamp when the pipeline was started
 
@@ -78,8 +79,6 @@ public class CtdImporter {
      * @throws Exception exception
      */
     public void run() throws Exception {
-
-        System.out.println(getVersion());
 
         startTimeStamp = new Date();
 
@@ -325,14 +324,19 @@ public class CtdImporter {
         manager.dumpCounters(logDebug);
         System.out.println("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
         logDebug.debug("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
-        int i=0, annotCount=0;
+        AtomicInteger i=new AtomicInteger(0), annotCount=new AtomicInteger(0);
 
-        for( Map.Entry<String, List<Annotation>> entry: incomingAnnots.entrySet() ) {
+        incomingAnnots.entrySet().parallelStream().forEach( entry -> {
             List<Annotation> annots = entry.getValue();
-            annotCount += annots.size();
-            logDebug.debug((++i)+". "+annotCount);
-            process(manager.getSession(), annots, entry.getKey());
-        }
+            annotCount.addAndGet(annots.size());
+            logDebug.debug((i.incrementAndGet()) + ". " + annotCount);
+            try {
+                process(manager.getSession(), annots, entry.getKey());
+            } catch(Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         logDebug.debug("INCOMING ANNOT DONE");
         manager.dumpCounters(logDebug);
 
@@ -348,7 +352,7 @@ public class CtdImporter {
             return;
         }
 
-        List<Annotation> mergedIncomingAnnots = mergeAnnots(incomingAnnots, 4000);
+        List<Annotation> mergedIncomingAnnots = mergeAnnots(incomingAnnots, getMaxXrefSourceLength());
 
 
         List<Annotation> annotsInRgd = inRgdAnnots.get(annotKey);
@@ -565,11 +569,11 @@ public class CtdImporter {
         this.parser = parser;
     }
 
-    public void setVersion(String version) {
-        this.version = version;
+    public void setMaxXrefSourceLength(int maxXrefSourceLength) {
+        this.maxXrefSourceLength = maxXrefSourceLength;
     }
 
-    public String getVersion() {
-        return version;
+    public int getMaxXrefSourceLength() {
+        return maxXrefSourceLength;
     }
 }
