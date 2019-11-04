@@ -19,6 +19,7 @@ import java.util.zip.GZIPInputStream;
  */
 public class CtdParser extends RecordPreprocessor {
 
+    private final Logger logStatus = Logger.getLogger("status");
     private final Logger logRejectedAnnots = Logger.getLogger("rejectedAnnots");
     private final Logger logRejectedAnnotsSummary = Logger.getLogger("rejectedAnnotsSummary");
 
@@ -31,12 +32,9 @@ public class CtdParser extends RecordPreprocessor {
 
     // count of rejected annots for given chemical
     private Map<String,Integer> mapRejectedAnnotCounts = new HashMap<>();
-    private String version;
 
     // download chemicals
     public void process() throws Exception {
-
-        System.out.println(getVersion());
 
         FileDownloader downloader = new FileDownloader();
         downloader.setExternalFile(getChemGeneInteractionsFile());
@@ -74,7 +72,9 @@ public class CtdParser extends RecordPreprocessor {
                 interaction.setGeneID(cols[4]);
                 interaction.setGeneForms(cols[5]);
                 interaction.setOrganism(organism);
-                interaction.setOrganismID(cols[7]);
+                if( !interaction.setOrganismID(cols[7]) ) {
+                    logStatus.warn("Unsupported taxonomic organism id " + cols[7]);
+                }
                 interaction.setInteraction(cols[8]);
                 interaction.setInteractionActions(cols[9]);
                 interaction.setPubmedIds(cols[10]);
@@ -236,13 +236,5 @@ public class CtdParser extends RecordPreprocessor {
 
     public void setChemGeneInteractionsFile(String chemGeneInteractionsFile) {
         this.chemGeneInteractionsFile = chemGeneInteractionsFile;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
-    }
-
-    public String getVersion() {
-        return version;
     }
 }

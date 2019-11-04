@@ -1,11 +1,11 @@
 <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
 	<bean id="manager" class="edu.mcw.rgd.dataload.CtdManager">
-        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build 2019-06-19" />
         <property name="importer" ref="ctdImporter" />
 	</bean>
 
     <bean id="ctdImporter" class="edu.mcw.rgd.dataload.CtdImporter">
+        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build 2019-11-01" />
         <property name="parser" ref="ctdParser" />
         <property name="obsoleteAnnotLimit" value="500000" />
         <property name="aspect" value="E" />
@@ -20,7 +20,6 @@
     </bean>
 
     <bean id="ctdParser" class="edu.mcw.rgd.dataload.CtdParser">
-        <property name="version" value="--CTD Parser -- v. 1.1; build Mar 06, 2017 --" />
         <!-- processed organism names as found in chemGeneInteractionsFile;
              interactions for other organism names won't be processed;
          -->

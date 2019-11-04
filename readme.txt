@@ -1,3 +1,6 @@
+2019-11-01
+  improved logging (no more System.out.println)
+
 2019-06-19
   sped up the annotation loading part
    

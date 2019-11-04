@@ -28,7 +28,12 @@ public class CtdDAO {
     RGDManagementDAO rdao = new RGDManagementDAO();
     XdbIdDAO xdbIdDAO = new XdbIdDAO();
 
+    Logger logStatus = Logger.getLogger("status");
     Logger logInsertedSynonyms = Logger.getLogger("insertedSynonyms");
+
+    public String getConnectionInfo() {
+        return rdao.getConnectionInfo();
+    }
 
     public List<StringMapQuery.MapPair> getChebiSynonymsWithCasRN() throws Exception {
 
@@ -240,7 +245,7 @@ public class CtdDAO {
                 gene = geneDAO.getGene(assoc.getDetailRgdId());
             } catch(GeneDAO.GeneDAOException exception) {
                 // gene rgd id is invalid
-                System.out.println("  WARNING: Gene rgd id is invalid: "+assoc.getDetailRgdId());
+                logStatus.warn("  WARNING: Gene rgd id is invalid: "+assoc.getDetailRgdId());
                 continue;
             }
 

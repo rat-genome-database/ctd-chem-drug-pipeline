@@ -5,10 +5,12 @@ import edu.mcw.rgd.datamodel.*;
 import edu.mcw.rgd.datamodel.ontology.Annotation;
 import edu.mcw.rgd.datamodel.ontologyx.Term;
 import edu.mcw.rgd.pipelines.*;
+import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections.map.MultiValueMap;
 import org.apache.log4j.Logger;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +46,6 @@ public class CtdImporter {
     private final Logger logMultiMatch = Logger.getLogger("multiMatch");
     private final Logger logNoMatch = Logger.getLogger("noMatch");
     private final Logger logUpdatedAnnotNotes = Logger.getLogger("updatedAnnotNotes");
-    private final Logger logDebug = Logger.getLogger("debug");
 
     private String aspect;
     private int obsoleteAnnotLimit;
@@ -67,6 +68,7 @@ public class CtdImporter {
 
     final private ConcurrentHashMap<String, List<Annotation>> incomingAnnots = new ConcurrentHashMap<>();
     final private ConcurrentHashMap<String, List<Annotation>> inRgdAnnots = new ConcurrentHashMap<>();
+    private String version;
 
     /**
      * run entire import
@@ -80,7 +82,14 @@ public class CtdImporter {
      */
     public void run() throws Exception {
 
+        logStatus.info(getVersion());
+
         startTimeStamp = new Date();
+
+        logStatus.info("   "+dao.getConnectionInfo());
+
+        SimpleDateFormat sdt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        logStatus.info("   started at "+sdt.format(startTimeStamp));
 
         PipelineManager manager = new PipelineManager();
 
@@ -272,7 +281,7 @@ public class CtdImporter {
             public void process(PipelineRecord pipelineRecord) throws Exception {
 
                 CtdRecord rec = (CtdRecord) pipelineRecord;
-                logDebug.debug(rec.getRecNo() + ". ");
+                logStatus.debug(rec.getRecNo() + ". ");
 
                 // are there any annotations to be processed?
                 if( rec.incomingAnnots.isEmpty() )
@@ -304,48 +313,49 @@ public class CtdImporter {
 
         manager.run();
 
-        loadAnnots(manager);
+        // dump counter statistics
+        manager.dumpCounters(logStatus);
 
-        deleteObsoleteAnnotations(manager.getSession());
+        CounterPool counters = new CounterPool();
+
+        loadAnnots(counters);
+
+        deleteObsoleteAnnotations(counters);
 
         dumpTotalNotesLength("AT_FINISH");
 
-        // dump counter statistics
-        manager.dumpCounters(logStatus);
-        manager.getSession().dumpCounters(System.out);
-        manager.dumpCounters(logDebug);
+        logStatus.info(counters.dumpAlphabetically());
+
+        logStatus.info("--CTD Chemical Drug Interactions pipeline DONE --");
+        logStatus.info("--elapsed time: "+Utils.formatElapsedTime(startTimeStamp.getTime(), System.currentTimeMillis()));
     }
 
-    void loadAnnots(PipelineManager manager) throws Exception {
+    void loadAnnots(CounterPool counters) throws Exception {
         long time0 = System.currentTimeMillis();
 
         dumpTotalNotesLength("BEFORE_UPDATE_NOTES_XREFSRC");
 
-        manager.dumpCounters(logDebug);
-        System.out.println("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
-        logDebug.debug("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
+        logStatus.debug("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
         AtomicInteger i=new AtomicInteger(0), annotCount=new AtomicInteger(0);
 
         incomingAnnots.entrySet().parallelStream().forEach( entry -> {
             List<Annotation> annots = entry.getValue();
             annotCount.addAndGet(annots.size());
-            logDebug.debug((i.incrementAndGet()) + ". " + annotCount);
+            logStatus.debug((i.incrementAndGet()) + ". " + annotCount);
             try {
-                process(manager.getSession(), annots, entry.getKey());
+                process(counters, annots, entry.getKey());
             } catch(Exception e) {
+                Utils.printStackTrace(e, logStatus);
                 throw new RuntimeException(e);
             }
         });
 
-        logDebug.debug("INCOMING ANNOT DONE");
-        manager.dumpCounters(logDebug);
+        logStatus.debug("INCOMING ANNOT DONE");
 
-        dumpTotalNotesLength("AFTER_UPDATE_NOTES_XREFSRC");
-
-        System.out.println("LOAD ANNOTS OK -- elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
+        logStatus.info("LOAD ANNOTS OK -- elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
     }
 
-    void process(PipelineSession session, List<Annotation> incomingAnnots, String annotKey) throws Exception {
+    void process(CounterPool counters, List<Annotation> incomingAnnots, String annotKey) throws Exception {
 
         // double check
         if( incomingAnnots.isEmpty() ) {
@@ -364,12 +374,12 @@ public class CtdImporter {
                 logInsertedAnnots.info("inserted RGDID:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " " + annot.getNotes());
 
                 // annotation has been inserted
-                session.incrementCounter("ANNOTATIONS_" + annot.getEvidence() + "_INSERTED", 1);
+                counters.increment("ANNOTATIONS_" + annot.getEvidence() + "_INSERTED");
                 return;
             }
 
             logUpdatedAnnots.info("RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource());
-            session.incrementCounter("ANNOTATIONS_" + annot.getEvidence() + "_MATCHED", 1);
+            counters.increment("ANNOTATIONS_" + annot.getEvidence() + "_MATCHED");
 
             // find the annot in RGD with same xrefSource, if possible, for update
             Annotation annotInRgd = annotsInRgd.get(0);
@@ -387,7 +397,7 @@ public class CtdImporter {
 
                 // the annotation is up-to-date
                 dao.updateLastModified(annotInRgd.getKey());
-                session.incrementCounter("ANNOTATIONS_UPDATED_TIME", 1);
+                counters.increment("ANNOTATIONS_UPDATED_TIME");
             } else {
                 // update notes and xref_source of the annotation
 
@@ -396,7 +406,7 @@ public class CtdImporter {
                         + "\n NEW:" + annot.getXrefSource() + " - " + annot.getNotes());
 
                 dao.updateAnnotationNotesAndXRefSource(annotInRgd.getKey(), annot.getNotes(), annot.getXrefSource());
-                session.incrementCounter("ANNOTATIONS_UPDATED_TIME_NOTES_XREFSRC", 1);
+                counters.increment("ANNOTATIONS_UPDATED_TIME_NOTES_XREFSRC");
             }
         }
     }
@@ -410,7 +420,7 @@ public class CtdImporter {
         for( int splits=1; processNextSplit; splits++ ) {
 
             if( splits>1 ) {
-                System.out.println("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
+                logStatus.info("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
                     +" "+incomingAnnots.get(0).getTermAcc()+" "+incomingAnnots.get(0).getTerm());
             }
             mergedAnnots.clear();
@@ -447,7 +457,7 @@ public class CtdImporter {
             String notes = ann.getNotes();
             if (notes != null && !notes.isEmpty()) {
                 if (notes.contains("; ")) {
-                    System.out.println("**** NOTES CONTAINS '; '");
+                    logStatus.warn("**** NOTES CONTAINS '; '");
                 }
                 Collections.addAll(noteSet, notes.split("; "));
             }
@@ -463,7 +473,7 @@ public class CtdImporter {
         return result;
     }
 
-    void deleteObsoleteAnnotations(PipelineSession session) throws Exception {
+    void deleteObsoleteAnnotations(CounterPool counters) throws Exception {
 
         List<Annotation> obsoleteAnnotations = dao.getAnnotationsModifiedBeforeTimestamp(getOwner(), startTimeStamp);
         if( obsoleteAnnotations.size() > getObsoleteAnnotLimit() ) {
@@ -473,15 +483,14 @@ public class CtdImporter {
                 " than the built-in delete limit of "+getObsoleteAnnotLimit()+
                 "; DELETE ABORTED!\n" +
                 "******************************\n";
-            System.out.println(msg);
             logStatus.warn(msg);
-            session.incrementCounter("OBSOLETE_ANNOTATIONS", obsoleteAnnotations.size());
+            counters.add("OBSOLETE_ANNOTATIONS", obsoleteAnnotations.size());
             return;
         }
 
         for( Annotation obsoleteAnnot: obsoleteAnnotations ) {
             logDeletedAnnots.info("DELETE " + obsoleteAnnot.dump("|"));
-            session.incrementCounter("ANNOTATIONS_"+obsoleteAnnot.getEvidence() + "_DELETED", 1);
+            counters.increment("ANNOTATIONS_"+obsoleteAnnot.getEvidence() + "_DELETED");
         }
 
         dao.deleteAnnotations(obsoleteAnnotations);
@@ -575,5 +584,13 @@ public class CtdImporter {
 
     public int getMaxXrefSourceLength() {
         return maxXrefSourceLength;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public String getVersion() {
+        return version;
     }
 }

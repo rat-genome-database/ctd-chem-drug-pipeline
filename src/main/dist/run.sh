@@ -3,11 +3,14 @@
 . /etc/profile
 APPDIR=/home/rgddata/pipelines/CTDChemDrug
 SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
-ELIST=mtutaj@mcw.edu
+ELIST1=mtutaj@mcw.edu
+ELIST2=mtutaj@mcw.edu
 if [ "$SERVER" == "REED" ]; then
-    ELIST="$ELIST,slaulederkind@mcw.edu"
+    ELIST1="rgd.pipelines@mcw.edu,rgd.developers@mcw.edu"
+    ELIST2="$ELIST2,slaulederkind@mcw.edu"
 fi
 
-$APPDIR/_run.sh 2>&1
+$APPDIR/_run.sh 2>&1 > run.log
 
-mailx -s "[$SERVER] CTD rejected annotations" $ELIST < $APPDIR/logs/rejectedAnnotsSummary.log
+mailx -s "[$SERVER] CTD Chemical Interaction Pipeline ok" $ELIST1 < $APPDIR/logs/summary.log
+mailx -s "[$SERVER] CTD rejected annotations" $ELIST2 < $APPDIR/logs/rejectedAnnotsSummary.log

@@ -90,22 +90,21 @@ public class CtdChemGeneInteraction implements Dumpable {
         return organismID;
     }
 
-    public void setOrganismID(String organismID) {
+    public boolean setOrganismID(String organismID) {
         this.organismID = organismID;
 
         switch (organismID) {
             case "10116":
                 setSpeciesTypeKey(SpeciesType.RAT);
-                break;
+                return true;
             case "9606":
                 setSpeciesTypeKey(SpeciesType.HUMAN);
-                break;
+                return true;
             case "10090":
                 setSpeciesTypeKey(SpeciesType.MOUSE);
-                break;
+                return true;
             default:
-                System.out.println("Unsupported taxonomic organism id " + organismID);
-                break;
+                return false;
         }
     }
 
