@@ -2,7 +2,6 @@ package edu.mcw.rgd.dataload;
 
 import edu.mcw.rgd.datamodel.Gene;
 import edu.mcw.rgd.datamodel.ontology.Annotation;
-import edu.mcw.rgd.pipelines.PipelineRecord;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -12,7 +11,7 @@ import java.util.List;
  * @since 3/21/12
  * represents a chemical being processed
  */
-public class CtdRecord extends PipelineRecord {
+public class CtdRecord {
 
     public CtdChemGeneInteraction interaction;
     public CtdChemical chemical; // chemical matching the interaction
@@ -23,6 +22,8 @@ public class CtdRecord extends PipelineRecord {
     // annots produced from incoming interaction line -- to be sync-ed against database
     public List<Annotation> incomingAnnots = new LinkedList<>();
     public List<Annotation> inRgdAnnots = new LinkedList<>();
+
+    int recno;
 
     // called before QC
     public void initQC() {

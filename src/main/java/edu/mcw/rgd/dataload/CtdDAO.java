@@ -37,7 +37,11 @@ public class CtdDAO {
 
     public List<StringMapQuery.MapPair> getChebiSynonymsWithCasRN() throws Exception {
 
-        return ontologyDAO.getTermsWithCasRN();
+        //return ontologyDAO.getTermsWithCasRN();
+
+        String sql = "SELECT DISTINCT term_acc,synonym_name cas FROM ont_synonyms s WHERE synonym_type='xref' AND synonym_name LIKE 'CAS:%' " +
+                "AND EXISTS(SELECT 1 FROM ont_terms t WHERE t.term_acc=s.term_acc AND is_obsolete=0 AND ont_id='CHEBI')";
+        return StringMapQuery.execute(ontologyDAO, sql);
     }
 
     public List<StringMapQuery.MapPair> getChebiSynonymsWithMesh() throws Exception {
@@ -203,7 +207,7 @@ public class CtdDAO {
      * @return List of Gene objects being homolog to given gene; empty list if there are no homologs available or if gene rgd id is invalid
      * @throws Exception when unexpected error in spring framework occurs
      */
-    synchronized public List<Gene> getHomologs(int rgdId) throws Exception {
+    synchronized public List<Gene> getRatMouseHumanHomologs(int rgdId) throws Exception {
 
         // first get homologs from cache
         List<Gene> homologs = _homologCache.get(rgdId);
@@ -226,10 +230,23 @@ public class CtdDAO {
     }
     private Map<Integer, List<Gene>> _homologCache = new HashMap<>(40003);
 
+
+    /**
+     * get active gene homologs for given gene rgd id and desired species
+     * @param rgdId gene rgd id
+     * @return List of Gene objects being homolog to given gene; empty list if there are no homologs available or if gene rgd id is invalid
+     * @throws Exception when unexpected error in spring framework occurs
+     */
+    synchronized public List<Gene> getHomologs(int rgdId, int speciesTypeKey) throws Exception {
+
+        return geneDAO.getActiveOrthologs(rgdId, speciesTypeKey);
+    }
+
     public Gene getOrtholog( int geneRgdId, int desiredSpeciesTypeKey, String geneSymbol ) throws Exception {
 
         // try strong orthologs
-        for( Gene homolog: getHomologs(geneRgdId) ) {
+        List<Gene> homologs = desiredSpeciesTypeKey>3 ? getHomologs(geneRgdId, desiredSpeciesTypeKey) : getRatMouseHumanHomologs(geneRgdId);
+        for( Gene homolog: homologs ) {
             if( homolog.getSpeciesTypeKey()==desiredSpeciesTypeKey )
                 return homolog;
         }

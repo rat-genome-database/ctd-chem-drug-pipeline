@@ -5,13 +5,12 @@
 	</bean>
 
     <bean id="ctdImporter" class="edu.mcw.rgd.dataload.CtdImporter">
-        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build 2019-11-01" />
+        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build 2019-11-13" />
         <property name="parser" ref="ctdParser" />
         <property name="obsoleteAnnotLimit" value="500000" />
         <property name="aspect" value="E" />
         <property name="owner" value="207" />
         <property name="dataSource" value="CTD" />
-        <property name="processingQueueSize" value="2000" /><!-- to avoid running out of memory-->
         <property name="refRgdId" value="6480464" />
 
         <!-- maximum length of column FULL_ANNOT.XREF_SOURCE; if incoming data exceeds this limit,
@@ -20,15 +19,6 @@
     </bean>
 
     <bean id="ctdParser" class="edu.mcw.rgd.dataload.CtdParser">
-        <!-- processed organism names as found in chemGeneInteractionsFile;
-             interactions for other organism names won't be processed;
-         -->
-        <property name="organismNames" ><set>
-            <value>Rattus norvegicus</value>
-            <value>Mus musculus</value>
-            <value>Homo sapiens</value>
-        </set></property>
-
         <property name="chemicalsFile" value="http://ctdbase.org/reports/CTD_chemicals.tsv.gz" />
         <property name="chemGeneInteractionsFile" value="http://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz" />
     </bean>

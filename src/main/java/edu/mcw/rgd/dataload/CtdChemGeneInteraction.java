@@ -93,19 +93,12 @@ public class CtdChemGeneInteraction implements Dumpable {
     public boolean setOrganismID(String organismID) {
         this.organismID = organismID;
 
-        switch (organismID) {
-            case "10116":
-                setSpeciesTypeKey(SpeciesType.RAT);
-                return true;
-            case "9606":
-                setSpeciesTypeKey(SpeciesType.HUMAN);
-                return true;
-            case "10090":
-                setSpeciesTypeKey(SpeciesType.MOUSE);
-                return true;
-            default:
-                return false;
+        int speciesTypeKey = SpeciesType.parse("taxon:"+organismID);
+        if( speciesTypeKey>0 ) {
+            setSpeciesTypeKey(speciesTypeKey);
+            return true;
         }
+        return false;
     }
 
     public String getInteraction() {

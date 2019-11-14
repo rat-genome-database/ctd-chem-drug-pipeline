@@ -1,29 +1,29 @@
 package edu.mcw.rgd.dataload;
 
+import edu.mcw.rgd.datamodel.SpeciesType;
 import edu.mcw.rgd.datamodel.ontologyx.Term;
-import edu.mcw.rgd.pipelines.PipelineSession;
-import edu.mcw.rgd.pipelines.RecordPreprocessor;
+import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections.map.MultiValueMap;
 import org.apache.log4j.Logger;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
 import java.util.*;
-import java.util.zip.GZIPInputStream;
 
 /**
  * @author mtutaj
  * @since 3/3/2017
  */
-public class CtdParser extends RecordPreprocessor {
+public class CtdParser {
 
     private final Logger logStatus = Logger.getLogger("status");
     private final Logger logRejectedAnnots = Logger.getLogger("rejectedAnnots");
     private final Logger logRejectedAnnotsSummary = Logger.getLogger("rejectedAnnotsSummary");
 
-    private Set<String> organismNames;
+    // taxonomic names of all public species in RGD
+    private Set<String> organismNames = new HashSet<>();
+
     private String chemicalsFile;
     private String chemGeneInteractionsFile;
 
@@ -33,8 +33,13 @@ public class CtdParser extends RecordPreprocessor {
     // count of rejected annots for given chemical
     private Map<String,Integer> mapRejectedAnnotCounts = new HashMap<>();
 
-    // download chemicals
-    public void process() throws Exception {
+    public void init() {
+        loadOrganismNames();
+    }
+
+    public List<CtdRecord> process(CounterPool counters) throws Exception {
+
+        List<CtdRecord> ctdRecords = new ArrayList<>();
 
         FileDownloader downloader = new FileDownloader();
         downloader.setExternalFile(getChemGeneInteractionsFile());
@@ -43,8 +48,7 @@ public class CtdParser extends RecordPreprocessor {
 
         String localFile = downloader.downloadNew();
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(localFile))));
-        int recno = 0;
+        BufferedReader reader = Utils.openReader(localFile);
         String line;
         while( (line=reader.readLine())!=null ) {
             // skip comment lines
@@ -59,7 +63,7 @@ public class CtdParser extends RecordPreprocessor {
                 // organism must be on at least one of the targeted list of organism names
                 String organism = cols[6];
                 if( !getOrganismNames().contains(organism) ) {
-                    getSession().incrementCounter("INTERACTION_SKIPPED_UNSUPPORTED_ORGANISM", 1);
+                    counters.increment("INTERACTION_SKIPPED_UNSUPPORTED_ORGANISM");
                     continue;
                 }
 
@@ -82,7 +86,7 @@ public class CtdParser extends RecordPreprocessor {
                 // see if chemical id is on the list of processed chemicals
                 if( !mapChemicals.containsKey(chemicalId) ) {
                     // this chemical is not on list of chemicals processed by the pipeline
-                    getSession().incrementCounter("INTERACTION_SKIPPED_CHEMICAL_NOT_MATCHING_CHEBI", 1);
+                    counters.increment("INTERACTION_SKIPPED_CHEMICAL_NOT_MATCHING_CHEBI");
 
                     // log it
                     logRejectedAnnots.info(interaction.dump("|"));
@@ -97,12 +101,13 @@ public class CtdParser extends RecordPreprocessor {
                     continue;
                 }
 
+                counters.increment("INTERACTIONS_"+organism.toUpperCase());
+
                 CtdRecord rec = new CtdRecord();
                 rec.interaction = interaction;
                 rec.chemical = mapChemicals.get(chemicalId);
-                rec.setRecNo(++recno);
 
-                getSession().putRecordToFirstQueue(rec);
+                ctdRecords.add(rec);
 
                 //if( recno>=10000 ) {
                 //    System.out.println("Stop interactions loading after 10000");
@@ -114,7 +119,17 @@ public class CtdParser extends RecordPreprocessor {
 
         dumpRejectedAnnotations();
 
-        getSession().incrementCounter("INTERACTIONS_LOADED", getSession().getRecordsProcessed(0));
+        counters.add("INTERACTIONS__LOADED", ctdRecords.size());
+
+        return ctdRecords;
+    }
+
+    void loadOrganismNames() {
+        for( int speciesTypeKey: SpeciesType.getSpeciesTypeKeys() ) {
+            if( SpeciesType.isSearchable(speciesTypeKey) ) {
+                organismNames.add(SpeciesType.getTaxonomicName(speciesTypeKey));
+            }
+        }
     }
 
     void dumpRejectedAnnotations() {
@@ -138,7 +153,7 @@ public class CtdParser extends RecordPreprocessor {
         }
     }
 
-    public void downloadChemicals(MultiValueMap mapCasRNToChebiTerm, MultiValueMap mapMeshToChebi, CtdDAO dao) throws Exception {
+    public void downloadChemicals(MultiValueMap mapCasRNToChebiTerm, MultiValueMap mapMeshToChebi, CtdDAO dao, CounterPool counters) throws Exception {
 
         FileDownloader downloader = new FileDownloader();
         downloader.setExternalFile(getChemicalsFile());
@@ -154,7 +169,7 @@ public class CtdParser extends RecordPreprocessor {
         int chemicalsWithMatchingMesh = 0;
         int chemicalsWithMatchingTermName = 0;
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(localFile))));
+        BufferedReader reader = Utils.openReader(localFile);
         String line;
 
         while( (line=reader.readLine())!=null ) {
@@ -205,17 +220,12 @@ public class CtdParser extends RecordPreprocessor {
         }
         reader.close();
 
-        PipelineSession session = getSession();
-        session.incrementCounter("CHEMICALS_PROCESSED", chemicalsWithMatchingCasRN+chemicalsWithNonMatchingCasRN+chemicalsWithoutCasRN);
-        session.incrementCounter("CHEMICALS__LOADED_MATCH_BY_CASRN", chemicalsWithMatchingCasRN);
-        session.incrementCounter("CHEMICALS__LOADED_MATCH_BY_MESH", chemicalsWithMatchingMesh);
-        session.incrementCounter("CHEMICALS__LOADED_MATCH_BY_TERMNAME", chemicalsWithMatchingTermName);
-        session.incrementCounter("CHEMICALS__IGNORED_NOT_MATCH", chemicalsWithNonMatchingCasRN);
-        session.incrementCounter("CHEMICALS__WITHOUT_CASRN", chemicalsWithoutCasRN);
-    }
-
-    public void setOrganismNames(Set<String> organismNames) {
-        this.organismNames = organismNames;
+        counters.add("CHEMICALS_PROCESSED", chemicalsWithMatchingCasRN+chemicalsWithNonMatchingCasRN+chemicalsWithoutCasRN);
+        counters.add("CHEMICALS__LOADED_MATCH_BY_CASRN", chemicalsWithMatchingCasRN);
+        counters.add("CHEMICALS__LOADED_MATCH_BY_MESH", chemicalsWithMatchingMesh);
+        counters.add("CHEMICALS__LOADED_MATCH_BY_TERMNAME", chemicalsWithMatchingTermName);
+        counters.add("CHEMICALS__IGNORED_NOT_MATCH", chemicalsWithNonMatchingCasRN);
+        counters.add("CHEMICALS__WITHOUT_CASRN", chemicalsWithoutCasRN);
     }
 
     public Set<String> getOrganismNames() {

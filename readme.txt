@@ -1,3 +1,7 @@
+2019-11-14
+  fixed loading of CAS RN ids
+  added support for species other than rat/mouse/human
+
 2019-11-01
   improved logging (no more System.out.println)
 
