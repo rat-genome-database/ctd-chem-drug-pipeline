@@ -6,7 +6,7 @@ SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
 ELIST1=mtutaj@mcw.edu
 ELIST2=mtutaj@mcw.edu
 if [ "$SERVER" == "REED" ]; then
-    ELIST1="rgd.pipelines@mcw.edu,rgd.developers@mcw.edu"
+    ELIST1="rgd.pipelines@mcw.edu"
     ELIST2="$ELIST2,slaulederkind@mcw.edu"
 fi
 

@@ -23,8 +23,6 @@ public class CtdRecord {
     public List<Annotation> incomingAnnots = new LinkedList<>();
     public List<Annotation> inRgdAnnots = new LinkedList<>();
 
-    int recno;
-
     // called before QC
     public void initQC() {
         gene = null;

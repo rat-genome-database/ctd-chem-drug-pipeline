@@ -1,3 +1,6 @@
+2020-04-14
+  updated jar dependencies
+
 2019-11-14
   fixed loading of CAS RN ids
   added support for species other than rat/mouse/human
