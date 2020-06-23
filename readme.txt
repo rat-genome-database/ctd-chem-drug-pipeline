@@ -1,3 +1,6 @@
+2020-06-23
+  updated main script
+
 2020-04-14
   updated jar dependencies
 
