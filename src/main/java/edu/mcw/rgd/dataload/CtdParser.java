@@ -108,11 +108,6 @@ public class CtdParser {
                 rec.chemical = mapChemicals.get(chemicalId);
 
                 ctdRecords.add(rec);
-
-                //if( recno>=10000 ) {
-                //    System.out.println("Stop interactions loading after 10000");
-                //   break;
-                //}
             }
         }
         reader.close();
@@ -178,7 +173,7 @@ public class CtdParser {
                 continue;
             // break into columns
             String cols[] = line.split("\\t", -1);
-            if( cols.length==9 ) {
+            if( cols.length>=8 ) {
                 CtdChemical chemical = new CtdChemical();
                 chemical.setChemicalName(cols[0]);
                 chemical.setChemicalID(cols[1]);
@@ -188,6 +183,7 @@ public class CtdParser {
                 chemical.setChemicalTreeNumbers(cols[5]);
                 chemical.setParentTreeNumbers(cols[6]);
                 chemical.setSynonyms(cols[7]);
+                // note: in some releases of the file, there is 9 column, and in some it is not
                 //chemical.setDrugBankIDs(cols[8]);
 
                 if( chemical.getCasRN()==null || chemical.getCasRN().length()==0 ) {
@@ -220,12 +216,17 @@ public class CtdParser {
         }
         reader.close();
 
-        counters.add("CHEMICALS_PROCESSED", chemicalsWithMatchingCasRN+chemicalsWithNonMatchingCasRN+chemicalsWithoutCasRN);
+        int chemicalsProcessed = chemicalsWithMatchingCasRN+chemicalsWithNonMatchingCasRN+chemicalsWithoutCasRN;
+        counters.add("CHEMICALS_PROCESSED", chemicalsProcessed);
         counters.add("CHEMICALS__LOADED_MATCH_BY_CASRN", chemicalsWithMatchingCasRN);
         counters.add("CHEMICALS__LOADED_MATCH_BY_MESH", chemicalsWithMatchingMesh);
         counters.add("CHEMICALS__LOADED_MATCH_BY_TERMNAME", chemicalsWithMatchingTermName);
         counters.add("CHEMICALS__IGNORED_NOT_MATCH", chemicalsWithNonMatchingCasRN);
         counters.add("CHEMICALS__WITHOUT_CASRN", chemicalsWithoutCasRN);
+
+        if( chemicalsProcessed==0 ) {
+            throw new Exception("ERROR: chemicals not loaded from file "+getChemicalsFile());
+        }
     }
 
     public Set<String> getOrganismNames() {

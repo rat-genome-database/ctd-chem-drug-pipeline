@@ -1,3 +1,6 @@
+2020-07-01
+  fixed parser for chemicals.tsv file
+
 2020-06-23
   updated main script
 
