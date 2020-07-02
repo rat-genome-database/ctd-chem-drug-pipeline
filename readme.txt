@@ -1,5 +1,6 @@
 2020-07-01
   fixed parser for chemicals.tsv file
+  replaced deprecated MultiValueMap with MultiValuedMap from apache commons collections
 
 2020-06-23
   updated main script

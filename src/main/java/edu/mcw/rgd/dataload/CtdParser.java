@@ -5,7 +5,8 @@ import edu.mcw.rgd.datamodel.ontologyx.Term;
 import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.FileDownloader;
 import edu.mcw.rgd.process.Utils;
-import org.apache.commons.collections4.map.MultiValueMap;
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.log4j.Logger;
 
 import java.io.BufferedReader;
@@ -129,7 +130,7 @@ public class CtdParser {
 
     void dumpRejectedAnnotations() {
         // reverse the hash: annot-count --> list of terms
-        MultiValueMap map = new MultiValueMap();
+        MultiValuedMap<Integer, String> map = new ArrayListValuedHashMap<>();
         for( Map.Entry<String,Integer> entry: mapRejectedAnnotCounts.entrySet() ) {
             map.put(entry.getValue(), entry.getKey());
         }
@@ -141,14 +142,14 @@ public class CtdParser {
         // dump annots: annots with most annotat counts are dumped first
         for( int i=keys.size()-1; i>=0; i-- ) {
             int annotCount = keys.get(i);
-            Collection coll = map.getCollection(annotCount);
-            for( Object obj: coll ) {
-                logRejectedAnnotsSummary.info(obj.toString() + "|ANNOT_COUNT:" + annotCount);
+            Collection<String> coll = map.get(annotCount);
+            for( String obj: coll ) {
+                logRejectedAnnotsSummary.info(obj + "|ANNOT_COUNT:" + annotCount);
             }
         }
     }
 
-    public void downloadChemicals(MultiValueMap mapCasRNToChebiTerm, MultiValueMap mapMeshToChebi, CtdDAO dao, CounterPool counters) throws Exception {
+    public void downloadChemicals(MultiValuedMap mapCasRNToChebiTerm, MultiValuedMap mapMeshToChebi, CtdDAO dao, CounterPool counters) throws Exception {
 
         FileDownloader downloader = new FileDownloader();
         downloader.setExternalFile(getChemicalsFile());

@@ -6,7 +6,8 @@ import edu.mcw.rgd.datamodel.ontology.Annotation;
 import edu.mcw.rgd.datamodel.ontologyx.Term;
 import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.Utils;
-import org.apache.commons.collections4.map.MultiValueMap;
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.log4j.Logger;
 
 import java.text.SimpleDateFormat;
@@ -59,10 +60,10 @@ public class CtdImporter {
     private Date startTimeStamp; // timestamp when the pipeline was started
 
     // CHEBI terms keyed by CasRN -- note: there could be multiple terms for one CasRN
-    final private MultiValueMap mapCasRNToChebiTerm = new MultiValueMap();
+    final private MultiValuedMap mapCasRNToChebiTerm = new ArrayListValuedHashMap();
 
     // map of MESH ids to CHEBI terms
-    final private MultiValueMap mapMeshToChebi = new MultiValueMap();
+    final private MultiValuedMap mapMeshToChebi = new ArrayListValuedHashMap();
 
     final private ConcurrentHashMap<String, List<Annotation>> incomingAnnots = new ConcurrentHashMap<>();
     final private ConcurrentHashMap<String, List<Annotation>> inRgdAnnots = new ConcurrentHashMap<>();
@@ -231,9 +232,9 @@ public class CtdImporter {
         }
 
         // for every matching CasRN, create incoming annotations
-        Collection<Term> terms = rec.chemical.getCasRN()==null ? null : (Collection<Term>) mapCasRNToChebiTerm.getCollection(rec.chemical.getCasRN());
+        Collection<Term> terms = rec.chemical.getCasRN()==null ? null : (Collection<Term>) mapCasRNToChebiTerm.get(rec.chemical.getCasRN());
         if( terms==null || terms.isEmpty() ) {
-            terms = (Collection<Term>) mapMeshToChebi.getCollection(rec.chemical.getChemicalID());
+            terms = (Collection<Term>) mapMeshToChebi.get(rec.chemical.getChemicalID());
         }
         if( (terms==null || terms.isEmpty()) && rec.chemical.chebiTerms!=null ) {
             terms = rec.chemical.chebiTerms;
@@ -496,7 +497,7 @@ public class CtdImporter {
             String cas = spacePos>0 ? casDecorated.substring(4, spacePos) : casDecorated.substring(4).trim();
 
             Term term = dao.getTermByAccId(pair.keyValue);
-            Collection<Term> terms = mapCasRNToChebiTerm.getCollection(cas);
+            Collection<Term> terms = mapCasRNToChebiTerm.get(cas);
             if( terms!=null ) {
                 for( Term t: terms ) {
                     if( t.getAccId().equals(term.getAccId()) ) {
@@ -511,7 +512,6 @@ public class CtdImporter {
         }
 
         counters.add("CHEBI_TERMS_WITH_CASRN", mapCasRNToChebiTerm.size());
-        counters.add("CHEBI_TERMS_CASRN_COUNT", mapCasRNToChebiTerm.totalSize());
     }
 
     void loadMeshMappedToChebiAccIds() throws Exception {
@@ -522,7 +522,6 @@ public class CtdImporter {
         }
 
         counters.add("CHEBI_TERMS_WITH_MESH", mapMeshToChebi.size());
-        counters.add("CHEBI_TERMS_MESH_COUNT", mapMeshToChebi.totalSize());
     }
 
     void dumpTotalNotesLength(String statName) throws Exception {
