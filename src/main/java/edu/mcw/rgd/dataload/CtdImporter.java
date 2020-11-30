@@ -10,6 +10,9 @@ import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.log4j.Logger;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map;
@@ -53,23 +56,23 @@ public class CtdImporter {
     private String dataSource;
     private int refRgdId;
 
-    private CtdDAO dao = new CtdDAO();
+    final private CtdDAO dao = new CtdDAO();
     private CtdParser parser;
     private int maxXrefSourceLength;
 
     private Date startTimeStamp; // timestamp when the pipeline was started
 
     // CHEBI terms keyed by CasRN -- note: there could be multiple terms for one CasRN
-    final private MultiValuedMap mapCasRNToChebiTerm = new ArrayListValuedHashMap();
+    final private MultiValuedMap<String,Term> mapCasRNToChebiTerm = new ArrayListValuedHashMap<>();
 
     // map of MESH ids to CHEBI terms
-    final private MultiValuedMap mapMeshToChebi = new ArrayListValuedHashMap();
+    final private MultiValuedMap<String,Term> mapMeshToChebi = new ArrayListValuedHashMap<>();
 
     final private ConcurrentHashMap<String, List<Annotation>> incomingAnnots = new ConcurrentHashMap<>();
     final private ConcurrentHashMap<String, List<Annotation>> inRgdAnnots = new ConcurrentHashMap<>();
     private String version;
 
-    private CounterPool counters = new CounterPool();
+    final private CounterPool counters = new CounterPool();
 
     /**
      * run entire import
@@ -107,7 +110,7 @@ public class CtdImporter {
         List<CtdRecord> ctdRecords = parser.process(counters);
 
         // map of NCBI gene ids to Gene objects for speedup
-        final Map<String, Gene> mapGenes = Collections.synchronizedMap(new HashMap<String, Gene>());
+        final Map<String, Gene> mapGenes = Collections.synchronizedMap(new HashMap<>());
 
         ctdRecords.parallelStream().forEach(rec -> {
 
@@ -189,10 +192,9 @@ public class CtdImporter {
                      || rec.gene.getSpeciesTypeKey()==SpeciesType.MOUSE
                      || rec.gene.getSpeciesTypeKey()==SpeciesType.HUMAN)
                     {
-                        List<Gene> homologs = new ArrayList<>(dao.getRatMouseHumanHomologs(rec.gene.getRgdId()));
-                        rec.homologs = homologs;
+                        rec.homologs = new ArrayList<>(dao.getRatMouseHumanHomologs(rec.gene.getRgdId()));
                     } else {
-                        rec.homologs = new ArrayList<Gene>(1);
+                        rec.homologs = new ArrayList<>(1);
                     }
                     rec.homologs.add(rec.gene);// add selfie to homologs
                 }
@@ -232,9 +234,9 @@ public class CtdImporter {
         }
 
         // for every matching CasRN, create incoming annotations
-        Collection<Term> terms = rec.chemical.getCasRN()==null ? null : (Collection<Term>) mapCasRNToChebiTerm.get(rec.chemical.getCasRN());
+        Collection<Term> terms = rec.chemical.getCasRN()==null ? null : mapCasRNToChebiTerm.get(rec.chemical.getCasRN());
         if( terms==null || terms.isEmpty() ) {
-            terms = (Collection<Term>) mapMeshToChebi.get(rec.chemical.getChemicalID());
+            terms = mapMeshToChebi.get(rec.chemical.getChemicalID());
         }
         if( (terms==null || terms.isEmpty()) && rec.chemical.chebiTerms!=null ) {
             terms = rec.chemical.chebiTerms;
@@ -512,6 +514,9 @@ public class CtdImporter {
         }
 
         counters.add("CHEBI_TERMS_WITH_CASRN", mapCasRNToChebiTerm.size());
+
+        // dump casrn-to-chebi into a file
+        dumpMultiMap("data/casrn_to_chebi.txt", mapCasRNToChebiTerm);
     }
 
     void loadMeshMappedToChebiAccIds() throws Exception {
@@ -522,6 +527,21 @@ public class CtdImporter {
         }
 
         counters.add("CHEBI_TERMS_WITH_MESH", mapMeshToChebi.size());
+
+        // dump mesh-to-chebi into a file
+        dumpMultiMap("data/mesh_to_chebi.txt", mapMeshToChebi);
+    }
+
+    void dumpMultiMap(String fname, MultiValuedMap<String,Term> multimap) throws IOException {
+        // dump mesh-to-chebi into a file
+        BufferedWriter out = new BufferedWriter(new FileWriter(fname));
+        for( String key: multimap.keySet() ) {
+            Collection<Term> terms = multimap.get(key);
+            for( Term term: terms ) {
+                out.write(key+"\t"+term.getAccId()+"\t"+term.getTerm()+"\n");
+            }
+        }
+        out.close();
     }
 
     void dumpTotalNotesLength(String statName) throws Exception {

@@ -1,3 +1,6 @@
+2020-11-30
+  added dumping of MESH-to-CHEBI and CASRN-TO-CHEBI maps to local files
+
 2020-07-01
   fixed parser for chemicals.tsv file
   replaced deprecated MultiValueMap with MultiValuedMap from apache commons collections
