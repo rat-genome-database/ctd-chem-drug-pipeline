@@ -535,7 +535,7 @@ public class CtdImporter {
     void dumpMultiMap(String fname, MultiValuedMap<String,Term> multimap) throws IOException {
         // dump mesh-to-chebi into a file
         BufferedWriter out = new BufferedWriter(new FileWriter(fname));
-        for( String key: multimap.keySet() ) {
+        for( String key: new TreeSet<>(multimap.keySet()) ) {
             Collection<Term> terms = multimap.get(key);
             for( Term term: terms ) {
                 out.write(key+"\t"+term.getAccId()+"\t"+term.getTerm()+"\n");
