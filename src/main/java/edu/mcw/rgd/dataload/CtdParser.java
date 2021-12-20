@@ -91,7 +91,7 @@ public class CtdParser {
                     counters.increment("INTERACTION_SKIPPED_CHEMICAL_NOT_MATCHING_CHEBI");
 
                     // log it
-                    logRejectedAnnots.info(interaction.dump("|"));
+                    logRejectedAnnots.debug(interaction.dump("|"));
 
                     //
                     String key = interaction.dump2("|");

@@ -134,7 +134,7 @@ public class CtdDAO {
         synonym.setCreatedDate(new Date());
         synonym.setLastModifiedDate(synonym.getCreatedDate());
         ontologyDAO.insertTermSynonym(synonym);
-        logInsertedSynonyms.info(synonym.dump("|"));
+        logInsertedSynonyms.debug(synonym.dump("|"));
     }
 
     final ConcurrentHashMap<String,Boolean> termAccToHasXrefMeshMap = new ConcurrentHashMap<>();

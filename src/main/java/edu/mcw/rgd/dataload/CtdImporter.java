@@ -141,7 +141,7 @@ public class CtdImporter {
                             genes = dao.getAllGenesBySymbol(rec.interaction.getGeneSymbol(), rec.interaction.getSpeciesTypeKey());
                             if (genes.isEmpty()) {
                                 counters.increment("NO MATCH BY NCBI GENEID AND BY GENE SYMBOL");
-                                logNoMatch.info("GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey());
+                                logNoMatch.debug("GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey());
                             }
                         } else if (genes.size() == 1) {
                             mapGenes.put(rec.interaction.getGeneID(), genes.get(0));
@@ -166,7 +166,7 @@ public class CtdImporter {
                             } else {
                                 msg += "\n   MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL";
                             }
-                            logMultiMatch.info(msg);
+                            logMultiMatch.debug(msg);
                         } else if (genes.size() == 1) {
                             oneGene = genes.get(0);
                         }
@@ -361,7 +361,7 @@ public class CtdImporter {
             // load annots in RGD
             if (annotsInRgd.isEmpty()) {
                 dao.insertAnnotation(annot);
-                logInsertedAnnots.info("inserted RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " " + annot.getNotes()
+                logInsertedAnnots.debug("inserted RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " " + annot.getNotes()
                         +" "+SpeciesType.getCommonName(annot.getSpeciesTypeKey())+" "+annot.getEvidence());
 
                 // annotation has been inserted
@@ -370,7 +370,7 @@ public class CtdImporter {
                 return;
             }
 
-            logUpdatedAnnots.info("RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource());
+            logUpdatedAnnots.debug("RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource());
             counters.increment("ANNOTATIONS_" + annot.getEvidence() + "_MATCHED");
             counters.increment("ANNOTATIONS_" + SpeciesType.getCommonName(annot.getSpeciesTypeKey()).toUpperCase() + "_MATCHED");
 
@@ -394,7 +394,7 @@ public class CtdImporter {
             } else {
                 // update notes and xref_source of the annotation
 
-                logUpdatedAnnotNotes.info("RGDID:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " NOTESLEN=" + annot.getNotes().length()
+                logUpdatedAnnotNotes.debug("RGDID:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource() + " NOTESLEN=" + annot.getNotes().length()
                         + "\n OLD:" + annotInRgd.getXrefSource() + " - " + annotInRgd.getNotes()
                         + "\n NEW:" + annot.getXrefSource() + " - " + annot.getNotes());
 
@@ -413,7 +413,7 @@ public class CtdImporter {
         for( int splits=1; processNextSplit; splits++ ) {
 
             if( splits>1 ) {
-                logStatus.info("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
+                logStatus.debug("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
                     +" "+incomingAnnots.get(0).getTermAcc()+" "+incomingAnnots.get(0).getTerm());
             }
             mergedAnnots.clear();
@@ -482,7 +482,7 @@ public class CtdImporter {
         }
 
         for( Annotation obsoleteAnnot: obsoleteAnnotations ) {
-            logDeletedAnnots.info("DELETE " + obsoleteAnnot.dump("|"));
+            logDeletedAnnots.debug("DELETE " + obsoleteAnnot.dump("|"));
             counters.increment("ANNOTATIONS_"+obsoleteAnnot.getEvidence() + "_DELETED");
         }
 
