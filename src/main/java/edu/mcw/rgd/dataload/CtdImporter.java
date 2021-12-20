@@ -8,7 +8,8 @@ import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -42,13 +43,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class CtdImporter {
 
-    private final Logger logStatus = Logger.getLogger("status");
-    private final Logger logDeletedAnnots = Logger.getLogger("deletedAnnots");
-    private final Logger logInsertedAnnots = Logger.getLogger("insertedAnnots");
-    private final Logger logUpdatedAnnots = Logger.getLogger("updatedAnnots");
-    private final Logger logMultiMatch = Logger.getLogger("multiMatch");
-    private final Logger logNoMatch = Logger.getLogger("noMatch");
-    private final Logger logUpdatedAnnotNotes = Logger.getLogger("updatedAnnotNotes");
+    private final Logger logStatus = LogManager.getLogger("status");
+    private final Logger logDeletedAnnots = LogManager.getLogger("deletedAnnots");
+    private final Logger logInsertedAnnots = LogManager.getLogger("insertedAnnots");
+    private final Logger logUpdatedAnnots = LogManager.getLogger("updatedAnnots");
+    private final Logger logMultiMatch = LogManager.getLogger("multiMatch");
+    private final Logger logNoMatch = LogManager.getLogger("noMatch");
+    private final Logger logUpdatedAnnotNotes = LogManager.getLogger("updatedAnnotNotes");
 
     private String aspect;
     private int obsoleteAnnotLimit;

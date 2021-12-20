@@ -12,7 +12,9 @@ import edu.mcw.rgd.process.Utils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.log4j.Logger;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author mtutaj
@@ -28,8 +30,8 @@ public class CtdDAO {
     RGDManagementDAO rdao = new RGDManagementDAO();
     XdbIdDAO xdbIdDAO = new XdbIdDAO();
 
-    Logger logStatus = Logger.getLogger("status");
-    Logger logInsertedSynonyms = Logger.getLogger("insertedSynonyms");
+    Logger logStatus = LogManager.getLogger("status");
+    Logger logInsertedSynonyms = LogManager.getLogger("insertedSynonyms");
 
     public String getConnectionInfo() {
         return rdao.getConnectionInfo();
