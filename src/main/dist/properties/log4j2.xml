@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <!-- <PatternLayout pattern="%d{HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/> -->
+            <PatternLayout pattern="[%d{yyyy-MM-hh HH:mm:ss}] %msg%n"/>
+        </Console>
+
+        <RollingFile name="status" append="true" fileName="logs/status.log" filePattern="logs/status.log.%d{yyyy-MM}">
+            <PatternLayout pattern="%d %p [%c] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <File name="summary" append="false" fileName="logs/summary.log">
+            <PatternLayout pattern="%m%n"/>
+            <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+        </File>
+        <RollingFile name="detail" append="true" fileName="logs/detail.log" filePattern="logs/detail.log.%d{yyyy-MM}">
+            <PatternLayout pattern="%d %p [%c] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+
+        <RollingFile name="insertedAnnots" append="true" fileName="logs/insertedAnnots.log" filePattern="logs/insertedAnnots.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="deletedAnnots" append="true" fileName="logs/deletedAnnots.log" filePattern="logs/deletedAnnots.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="updatedAnnotNotes" append="true" fileName="logs/updatedAnnotNotes.log" filePattern="logs/updatedAnnotNotes.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="updatedAnnots" append="true" fileName="logs/updatedAnnots.log" filePattern="logs/updatedAnnots.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="multiMatch" append="true" fileName="logs/multiMatch.log" filePattern="logs/multiMatch.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="noMatch" append="true" fileName="logs/noMatch.log" filePattern="logs/noMatch.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="insertedSynonyms" append="true" fileName="logs/insertedSynonyms.log" filePattern="logs/insertedSynonyms.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="rejectedAnnots" append="true" fileName="logs/rejectedAnnots.log" filePattern="logs/rejectedAnnots.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <RollingFile name="rejectedAnnotsSummary" append="true" fileName="logs/rejectedAnnotsSummary.log" filePattern="logs/rejectedAnnotsSummary.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+        <!-- daily -->
+        <Logger name="status" level="debug" additivity="false">
+            <AppenderRef ref="status" level="info"/>
+            <AppenderRef ref="summary" level="info"/><!-- human readable -->
+            <AppenderRef ref="detail"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+
+        <!-- monthly -->
+        <Logger name="insertedAnnots" level="debug" additivity="false">
+            <AppenderRef ref="insertedAnnots"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="deletedAnnots" level="debug" additivity="false">
+            <AppenderRef ref="deletedAnnots"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="updatedAnnotNotes" level="debug" additivity="false">
+            <AppenderRef ref="updatedAnnotNotes"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="updatedAnnots" level="debug" additivity="false">
+            <AppenderRef ref="updatedAnnots"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="multiMatch" level="debug" additivity="false">
+            <AppenderRef ref="multiMatch"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="noMatch" level="debug" additivity="false">
+            <AppenderRef ref="noMatch"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="insertedSynonyms" level="debug" additivity="false">
+            <AppenderRef ref="insertedSynonyms"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="rejectedAnnots" level="debug" additivity="false">
+            <AppenderRef ref="rejectedAnnots"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="rejectedAnnotsSummary" level="debug" additivity="false">
+            <AppenderRef ref="rejectedAnnotsSummary"/>
+            <AppenderRef ref="Console" level="info"/>
+        </Logger>
+    </Loggers>
+</Configuration>

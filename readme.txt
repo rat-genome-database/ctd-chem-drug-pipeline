@@ -1,3 +1,6 @@
+2021-12-20
+  upgraded log4j to avoid zero day exploit
+
 2020-11-30
   added dumping of MESH-to-CHEBI and CASRN-TO-CHEBI maps to local files
 

@@ -7,7 +7,8 @@ import edu.mcw.rgd.process.FileDownloader;
 import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.util.*;
@@ -18,9 +19,9 @@ import java.util.*;
  */
 public class CtdParser {
 
-    private final Logger logStatus = Logger.getLogger("status");
-    private final Logger logRejectedAnnots = Logger.getLogger("rejectedAnnots");
-    private final Logger logRejectedAnnotsSummary = Logger.getLogger("rejectedAnnotsSummary");
+    private final Logger logStatus = LogManager.getLogger("status");
+    private final Logger logRejectedAnnots = LogManager.getLogger("rejectedAnnots");
+    private final Logger logRejectedAnnotsSummary = LogManager.getLogger("rejectedAnnotsSummary");
 
     // taxonomic names of all public species in RGD
     private Set<String> organismNames = new HashSet<>();
@@ -90,7 +91,7 @@ public class CtdParser {
                     counters.increment("INTERACTION_SKIPPED_CHEMICAL_NOT_MATCHING_CHEBI");
 
                     // log it
-                    logRejectedAnnots.info(interaction.dump("|"));
+                    logRejectedAnnots.debug(interaction.dump("|"));
 
                     //
                     String key = interaction.dump2("|");
