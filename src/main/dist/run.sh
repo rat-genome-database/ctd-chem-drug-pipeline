@@ -1,7 +1,7 @@
 # run the pipeline
 #
 . /etc/profile
-APPDIR=/home/rgddata/pipelines/CTDChemDrug
+APPDIR=/home/rgddata/pipelines/ctd-chem-drug-pipeline
 SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
 ELIST1=mtutaj@mcw.edu
 ELIST2=mtutaj@mcw.edu

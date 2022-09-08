@@ -2,7 +2,7 @@
 # run the CTDChemDrug pipeline
 #
 . /etc/profile
-APPNAME=CTDChemDrug
+APPNAME=ctd-chem-drug-pipeline
 
 APPDIR=/home/rgddata/pipelines/$APPNAME
 cd $APPDIR

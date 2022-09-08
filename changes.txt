@@ -1,3 +1,6 @@
+Sep 08, 2022
+  renamed distro to ctd-chem-drug-pipeline
+
 Aug 01, 2022
   tuned up logging
 

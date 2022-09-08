@@ -5,7 +5,7 @@
 	</bean>
 
     <bean id="ctdImporter" class="edu.mcw.rgd.dataload.CtdImporter">
-        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build Aug 01, 2022" />
+        <property name="version" value="CTD Chemical Drug Interactions pipeline -- build Sep 08, 2022" />
         <property name="parser" ref="ctdParser" />
         <property name="obsoleteAnnotLimit" value="500000" />
         <property name="aspect" value="E" />
