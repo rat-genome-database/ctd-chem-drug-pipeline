@@ -118,7 +118,6 @@ public class CtdImporter {
 
             try {
                 rec.initQC();
-                counters.increment("INTERACTIONS_MATCH  TOTAL_PROCESSED");
 
                 // load gene by NCBI GENE ID
                 synchronized (mapGenes) {
@@ -184,9 +183,9 @@ public class CtdImporter {
                         // find the ortholog
                         rec.gene = dao.getOrtholog(rec.gene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
                         if( rec.gene!=null ) {
-                            counters.increment("INTERACTIONS_MATCH  BY_ORTHOLOGY; "+matchInfo);
+                            counters.increment(matchInfo+"  VIA ORTHOLOGY");
                         } else {
-                            counters.increment("INTERACTIONS_MATCH  NONE: SPECIES MIXUP; "+matchInfo);
+                            counters.increment(matchInfo+"  SKIPPED: NO ORTHOLOGY");
                         }
                     }
                 }

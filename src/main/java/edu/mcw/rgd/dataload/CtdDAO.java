@@ -194,14 +194,14 @@ public class CtdDAO {
         // get matching genes by gene symbol
         genes.addAll(removeInactiveGenes(geneDAO.getAllGenesBySymbol(geneSymbol, speciesTypeKey)));
         if( genes.size()==1 ) {
-            genes.get(0).setNotes("INTERACTIONS_MATCH_BY_GENE_SYMBOL");
+            genes.get(0).setNotes("INTERACTIONS_MATCH  BY_GENE_SYMBOL");
         }
 
         // if nothing found, get matching genes by alias
         if( genes.isEmpty() ) {
             genes.addAll(removeInactiveGenes(geneDAO.getGenesByAlias(geneSymbol, speciesTypeKey)));
             if( genes.size()==1 ) {
-                genes.get(0).setNotes("INTERACTIONS_MATCH_BY_GENE_ALIAS");
+                genes.get(0).setNotes("INTERACTIONS_MATCH  BY_GENE_ALIAS");
             }
         }
         return genes;

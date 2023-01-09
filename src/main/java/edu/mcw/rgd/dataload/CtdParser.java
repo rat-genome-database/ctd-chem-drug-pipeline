@@ -103,7 +103,7 @@ public class CtdParser {
                     continue;
                 }
 
-                counters.increment("INTERACTIONS_"+organism.toUpperCase());
+                counters.increment("INTERACTIONS_FOR_SPECIES "+organism.toUpperCase());
 
                 CtdRecord rec = new CtdRecord();
                 rec.interaction = interaction;
