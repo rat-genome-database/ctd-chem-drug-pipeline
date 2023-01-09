@@ -120,6 +120,7 @@ public class CtdImporter {
                 rec.initQC();
                 counters.increment("INTERACTIONS_MATCH  TOTAL_PROCESSED");
 
+                // load gene by NCBI GENE ID
                 synchronized (mapGenes) {
                     // match chemical by NCBI GeneId with a gene
                     rec.gene = null;
@@ -139,6 +140,7 @@ public class CtdImporter {
                     }
                 }
 
+                // load gene by symbol/alias if not a match by NCBI gene id
                 if (rec.gene == null) {
                     // no match by NCBI geneid -- try to match by gene symbol
                     List<Gene> genes = dao.getAllGenesBySymbol(rec.interaction.getGeneSymbol(), rec.interaction.getSpeciesTypeKey());
@@ -173,16 +175,19 @@ public class CtdImporter {
                 }
 
                 if (rec.gene != null) {
-                    if (rec.gene.getSpeciesTypeKey() != rec.interaction.getSpeciesTypeKey()) {
+                    if (rec.gene.getSpeciesTypeKey() == rec.interaction.getSpeciesTypeKey()) {
+                        counters.increment(rec.gene.getNotes());
+                    }
+                    else {
+                        String matchInfo = rec.gene.getNotes();
                         // interaction species is different from gene-from-GeneId species!
                         // find the ortholog
                         rec.gene = dao.getOrtholog(rec.gene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
-                        rec.gene.setNotes("INTERACTIONS_MATCH  BY_ORTHOLOGY");
-                    }
-                    if (rec.gene != null) {
-                        counters.increment(rec.gene.getNotes());
-                    } else {
-                        counters.increment("INTERACTIONS_MATCH  NONE: SPECIES MIXUP");
+                        if( rec.gene!=null ) {
+                            counters.increment("INTERACTIONS_MATCH  BY_ORTHOLOGY; "+matchInfo);
+                        } else {
+                            counters.increment("INTERACTIONS_MATCH  NONE: SPECIES MIXUP; "+matchInfo);
+                        }
                     }
                 }
 

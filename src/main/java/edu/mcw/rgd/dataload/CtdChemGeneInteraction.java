@@ -4,6 +4,7 @@ package edu.mcw.rgd.dataload;
 import edu.mcw.rgd.datamodel.Dumpable;
 import edu.mcw.rgd.datamodel.SpeciesType;
 import edu.mcw.rgd.process.Dumper;
+import edu.mcw.rgd.process.Utils;
 
 /**
  * @author mtutaj
@@ -165,10 +166,8 @@ public class CtdChemGeneInteraction implements Dumpable {
     }
 
     public String dump2(String delimiter) {
-        return new Dumper(delimiter)
-                .put("CHEMICAL", getChemicalName())
-                .put("ID", getChemicalID())
-                .put("CAS", getCasRN())
-                .dump();
+        return getChemicalName()
+                + delimiter + Utils.NVL(getChemicalID(),"")
+                + delimiter + Utils.NVL(getCasRN(),"");
     }
 }

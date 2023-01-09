@@ -140,12 +140,13 @@ public class CtdParser {
         ArrayList<Integer> keys = new ArrayList<>(map.keySet());
         Collections.sort(keys);
 
-        // dump annots: annots with most annotat counts are dumped first
+        // dump annots: annots with most annotation counts are dumped first
+        logRejectedAnnotsSummary.info("CHEMICAL|ID|CAS|ANNOT_COUNT");
         for( int i=keys.size()-1; i>=0; i-- ) {
             int annotCount = keys.get(i);
             Collection<String> coll = map.get(annotCount);
             for( String obj: coll ) {
-                logRejectedAnnotsSummary.info(obj + "|ANNOT_COUNT:" + annotCount);
+                logRejectedAnnotsSummary.info(obj + "|" + annotCount);
             }
         }
     }
