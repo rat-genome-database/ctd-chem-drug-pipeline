@@ -193,11 +193,17 @@ public class CtdDAO {
         List<Gene> genes = new ArrayList<>();
         // get matching genes by gene symbol
         genes.addAll(removeInactiveGenes(geneDAO.getAllGenesBySymbol(geneSymbol, speciesTypeKey)));
+        if( genes.size()==1 ) {
+            genes.get(0).setNotes("INTERACTIONS_MATCH_BY_GENE_SYMBOL");
+        }
 
         // if nothing found, get matching genes by alias
-        if( genes.isEmpty() )
+        if( genes.isEmpty() ) {
             genes.addAll(removeInactiveGenes(geneDAO.getGenesByAlias(geneSymbol, speciesTypeKey)));
-
+            if( genes.size()==1 ) {
+                genes.get(0).setNotes("INTERACTIONS_MATCH_BY_GENE_ALIAS");
+            }
+        }
         return genes;
     }
 
@@ -298,17 +304,6 @@ public class CtdDAO {
 
         return annotationDAO.executeAnnotationQuery(query, annot.getTermAcc(), annot.getAnnotatedObjectRgdId(),
                 annot.getEvidence(), annot.getRefRgdId(), annot.getWithInfo(), annot.getQualifier());
-    }
-
-    /**
-     * update last modified date for annotation list given their full annot keys
-     * @param fullAnnotKeys list of FULL_ANNOT_KEYs
-     * @return count of rows affected
-     * @throws Exception on spring framework dao failure
-     */
-    public int updateLastModified(List<Integer> fullAnnotKeys) throws Exception{
-
-        return annotationDAO.updateLastModified(fullAnnotKeys);
     }
 
     public int updateLastModified(int fullAnnotKey) throws Exception{

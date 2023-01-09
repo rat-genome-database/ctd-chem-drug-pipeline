@@ -111,79 +111,78 @@ public class CtdImporter {
         List<CtdRecord> ctdRecords = parser.process(counters);
 
         // map of NCBI gene ids to Gene objects for speedup
+        // in Gene notes we keep the match type, f.e. INTERACTIONS_MATCH_BY_SYMBOL
         final Map<String, Gene> mapGenes = Collections.synchronizedMap(new HashMap<>());
 
         ctdRecords.parallelStream().forEach(rec -> {
 
             try {
                 rec.initQC();
-
-                Gene oneGene;
+                counters.increment("INTERACTIONS_MATCH  TOTAL_PROCESSED");
 
                 synchronized (mapGenes) {
                     // match chemical by NCBI GeneId with a gene
                     rec.gene = null;
-                    oneGene = null;
 
                     // consult gene cache first
                     if (mapGenes.containsKey(rec.interaction.getGeneID())) {
-                        Gene gene = mapGenes.get(rec.interaction.getGeneID());
-                        if (gene.getSpeciesTypeKey() != rec.interaction.getSpeciesTypeKey()) {
-                            counters.increment("SPECIES TYPE MIXUP");
-                        } else
-                            rec.gene = gene;
-                    }
+                        rec.gene = mapGenes.get(rec.interaction.getGeneID());
+                    } else {
 
-                    if (rec.gene == null) {
                         List<Gene> genes = dao.getActiveGenesByXdbId(XdbId.XDB_KEY_NCBI_GENE, rec.interaction.getGeneID());
-                        if (genes.isEmpty()) {
-                            // no match by NCBI geneid -- try to match by gene symbol
-                            genes = dao.getAllGenesBySymbol(rec.interaction.getGeneSymbol(), rec.interaction.getSpeciesTypeKey());
-                            if (genes.isEmpty()) {
-                                counters.increment("NO MATCH BY NCBI GENEID AND BY GENE SYMBOL");
-                                logNoMatch.debug("GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey());
-                            }
-                        } else if (genes.size() == 1) {
-                            mapGenes.put(rec.interaction.getGeneID(), genes.get(0));
-                        }
-
-                        if (genes.size() > 1) {
-                            // multiple genes in RGD -- try to match by symbol
-                            String msg = "GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey();
-                            for (Gene gene : genes) {
-                                msg += "\n   RGDID=" + gene.getRgdId() + " SYMBOL=" + gene.getSymbol();
-                            }
-
-                            for (Gene gene : genes) {
-                                if (Utils.stringsAreEqualIgnoreCase(gene.getSymbol(), rec.interaction.getGeneSymbol())) {
-                                    rec.gene = gene;
-                                    counters.increment("MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL");
-                                    break;
-                                }
-                            }
-                            if (rec.gene == null) {
-                                counters.increment("MULTIMATCH");
-                            } else {
-                                msg += "\n   MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL";
-                            }
-                            logMultiMatch.debug(msg);
-                        } else if (genes.size() == 1) {
-                            oneGene = genes.get(0);
+                        if (genes.size() == 1) {
+                            Gene gene = genes.get(0);
+                            gene.setNotes("INTERACTIONS_MATCH  BY_NCBI_GENEID");
+                            mapGenes.put(rec.interaction.getGeneID(), gene);
+                            rec.gene = gene;
                         }
                     }
                 }
 
-                if (oneGene != null) {
-                    if (oneGene.getSpeciesTypeKey() != rec.interaction.getSpeciesTypeKey()) {
-                        // interaction species is different than gene-from-GeneId species!
-                        // find the ortholog
-                        oneGene = dao.getOrtholog(oneGene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
+                if (rec.gene == null) {
+                    // no match by NCBI geneid -- try to match by gene symbol
+                    List<Gene> genes = dao.getAllGenesBySymbol(rec.interaction.getGeneSymbol(), rec.interaction.getSpeciesTypeKey());
+                    if (genes.isEmpty()) {
+                        counters.increment("INTERACTIONS_MATCH  NONE");
+                        logNoMatch.debug("GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey());
                     }
-                    if (oneGene != null) {
-                        rec.gene = oneGene;
-                        counters.increment("SINGLE MATCH");
+                    else
+                    if (genes.size() > 1) {
+                        // multiple genes in RGD -- try to match by symbol
+                        String msg = "GENEID=" + rec.interaction.getGeneID() + " SYMBOL=" + rec.interaction.getGeneSymbol() + " species=" + rec.interaction.getSpeciesTypeKey();
+                        for (Gene gene : genes) {
+                            msg += "\n   RGDID=" + gene.getRgdId() + " SYMBOL=" + gene.getSymbol();
+                        }
+
+                        for (Gene gene : genes) {
+                            if (Utils.stringsAreEqualIgnoreCase(gene.getSymbol(), rec.interaction.getGeneSymbol())) {
+                                rec.gene = gene;
+                                gene.setNotes("INTERACTIONS_MATCH  MULTI -- PICKED ONE BY GENE SYMBOL");
+                                break;
+                            }
+                        }
+                        if (rec.gene == null) {
+                            counters.increment("INTERACTIONS_MATCH  MULTI -- SKIPPED");
+                        } else {
+                            msg += "\n   MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL";
+                        }
+                        logMultiMatch.debug(msg);
+                    } else if (genes.size() == 1) {
+                        rec.gene = genes.get(0);
+                    }
+                }
+
+                if (rec.gene != null) {
+                    if (rec.gene.getSpeciesTypeKey() != rec.interaction.getSpeciesTypeKey()) {
+                        // interaction species is different from gene-from-GeneId species!
+                        // find the ortholog
+                        rec.gene = dao.getOrtholog(rec.gene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
+                        rec.gene.setNotes("INTERACTIONS_MATCH  BY_ORTHOLOGY");
+                    }
+                    if (rec.gene != null) {
+                        counters.increment(rec.gene.getNotes());
                     } else {
-                        counters.increment("SPECIES TYPE MIXUP");
+                        counters.increment("INTERACTIONS_MATCH  NONE: SPECIES MIXUP");
                     }
                 }
 
@@ -257,7 +256,7 @@ public class CtdImporter {
         }
     }
 
-    void createAnnotations(CtdRecord rec, Gene gene, Term term, String qualifier) throws Exception {
+    void createAnnotations(CtdRecord rec, Gene gene, Term term, String qualifier) {
 
         Gene sourceGene = rec.gene;
         String evidence = sourceGene.getRgdId()==gene.getRgdId() ? "EXP" : "ISO";
