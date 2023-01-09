@@ -181,10 +181,12 @@ public class CtdImporter {
                             counters.increment("INTERACTIONS_MATCH  MULTI -- SKIPPED");
                         } else {
                             msg += "\n   MULTIMATCH BY NCBI GENEID; SINGLE MATCH BY GENE SYMBOL";
+                            counters.increment(rec.gene.getNotes());
                         }
                         logMultiMatch.debug(msg);
                     } else if (genes.size() == 1) {
                         rec.gene = genes.get(0);
+                        counters.increment(rec.gene.getNotes());
                     }
                 }
 
