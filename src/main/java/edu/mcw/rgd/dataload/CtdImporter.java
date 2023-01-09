@@ -139,6 +139,21 @@ public class CtdImporter {
                     }
                 }
 
+                if (rec.gene != null) {
+                    if (rec.gene.getSpeciesTypeKey() == rec.interaction.getSpeciesTypeKey()) {
+                        counters.increment(rec.gene.getNotes());
+                    }
+                    else {
+                        String matchInfo = rec.gene.getNotes();
+                        // interaction species is different from gene-from-GeneId species!
+                        // find the ortholog
+                        rec.gene = dao.getOrtholog(rec.gene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
+                        if( rec.gene!=null ) {
+                            counters.increment(matchInfo+"  VIA ORTHOLOGY");
+                        }
+                    }
+                }
+
                 // load gene by symbol/alias if not a match by NCBI gene id
                 if (rec.gene == null) {
                     // no match by NCBI geneid -- try to match by gene symbol
@@ -170,23 +185,6 @@ public class CtdImporter {
                         logMultiMatch.debug(msg);
                     } else if (genes.size() == 1) {
                         rec.gene = genes.get(0);
-                    }
-                }
-
-                if (rec.gene != null) {
-                    if (rec.gene.getSpeciesTypeKey() == rec.interaction.getSpeciesTypeKey()) {
-                        counters.increment(rec.gene.getNotes());
-                    }
-                    else {
-                        String matchInfo = rec.gene.getNotes();
-                        // interaction species is different from gene-from-GeneId species!
-                        // find the ortholog
-                        rec.gene = dao.getOrtholog(rec.gene.getRgdId(), rec.interaction.getSpeciesTypeKey(), rec.interaction.getGeneSymbol());
-                        if( rec.gene!=null ) {
-                            counters.increment(matchInfo+"  VIA ORTHOLOGY");
-                        } else {
-                            counters.increment(matchInfo+"  SKIPPED: NO ORTHOLOGY");
-                        }
                     }
                 }
 
