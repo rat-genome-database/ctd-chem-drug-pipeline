@@ -41,8 +41,11 @@ public class CtdDAO {
 
         //return ontologyDAO.getTermsWithCasRN();
 
-        String sql = "SELECT DISTINCT term_acc,synonym_name cas FROM ont_synonyms s WHERE synonym_type='xref' AND synonym_name LIKE 'CAS:%' " +
-                "AND EXISTS(SELECT 1 FROM ont_terms t WHERE t.term_acc=s.term_acc AND is_obsolete=0 AND ont_id='CHEBI')";
+        String sql = """
+            SELECT DISTINCT term_acc,synonym_name cas FROM ont_synonyms s
+            WHERE synonym_type='xref' AND synonym_name LIKE 'CAS:%'
+             AND EXISTS(SELECT 1 FROM ont_terms t WHERE t.term_acc=s.term_acc AND is_obsolete=0 AND ont_id='CHEBI')
+            """;
         return StringMapQuery.execute(ontologyDAO, sql);
     }
 
@@ -294,13 +297,13 @@ public class CtdDAO {
      */
     public List<Annotation> getAnnotationsByAnnot(Annotation annot) throws Exception {
 
-        String query = "SELECT * FROM full_annot WHERE "
-                // fields that are never null
-                +"term_acc=? AND annotated_object_rgd_id=? AND evidence=? AND "
-                // fields that could be null
-                +"NVL(ref_rgd_id,0) = NVL(?,0) AND "
-                +"NVL(with_info,'*') = NVL(?,'*') AND "
-                +"NVL(qualifier,'*') = NVL(?,'*')";
+        String query = """
+            SELECT * FROM full_annot
+            WHERE term_acc=? AND annotated_object_rgd_id=? AND evidence=? AND
+              NVL(ref_rgd_id,0) = NVL(?,0) AND
+              NVL(with_info,'*') = NVL(?,'*') AND
+              NVL(qualifier,'*') = NVL(?,'*')
+            """;
 
         return annotationDAO.executeAnnotationQuery(query, annot.getTermAcc(), annot.getAnnotatedObjectRgdId(),
                 annot.getEvidence(), annot.getRefRgdId(), annot.getWithInfo(), annot.getQualifier());
