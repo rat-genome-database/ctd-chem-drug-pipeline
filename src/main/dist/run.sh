@@ -6,8 +6,8 @@ SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
 ELIST1=mtutaj@mcw.edu
 ELIST2=mtutaj@mcw.edu
 if [ "$SERVER" == "REED" ]; then
-    ELIST1="$ELIST1,rgd.pipelines@mcw.edu"
-    ELIST2="$ELIST2,slaulederkind@mcw.edu"
+    ELIST1="$ELIST1 rgd.pipelines@mcw.edu"
+    ELIST2="$ELIST2 slaulederkind@mcw.edu"
 fi
 
 $APPDIR/_run.sh 2>&1 > run.log
