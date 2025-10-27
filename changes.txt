@@ -1,3 +1,6 @@
+Oct 27, 2025
+  improved logging
+
 Sep 11, 2025
   updated github branch master to main
 

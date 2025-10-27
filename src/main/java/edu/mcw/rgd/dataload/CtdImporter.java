@@ -246,15 +246,17 @@ public class CtdImporter {
             terms = rec.chemical.chebiTerms;
         }
 
-        for( Term term: terms ) {
+        if( terms!=null ) {
+            for (Term term : terms) {
 
-            if( !dao.ensureChebiTermHasMeshSynonym(term.getAccId(), rec.chemical.getChemicalID()) ) {
-                counters.increment("XREF_MESH_SYNONYMS_ADDED");
-            }
+                if (!dao.ensureChebiTermHasMeshSynonym(term.getAccId(), rec.chemical.getChemicalID())) {
+                    counters.increment("XREF_MESH_SYNONYMS_ADDED");
+                }
 
-            if( rec.homologs!=null ) {
-                for( Gene gene: rec.homologs ) {
-                    createAnnotations(rec, gene, term, qualifier);
+                if (rec.homologs != null) {
+                    for (Gene gene : rec.homologs) {
+                        createAnnotations(rec, gene, term, qualifier);
+                    }
                 }
             }
         }
@@ -328,13 +330,14 @@ public class CtdImporter {
 
         dumpTotalNotesLength("BEFORE_UPDATE_NOTES_XREFSRC");
 
-        logStatus.debug("INCOMING ANNOT BUCKETS:"+incomingAnnots.size());
-        AtomicInteger i=new AtomicInteger(0), annotCount=new AtomicInteger(0);
+        logStatus.debug("INCOMING ANNOTS BUCKETS:"+incomingAnnots.size());
+        //AtomicInteger i=new AtomicInteger(0);
+        AtomicInteger annotCount=new AtomicInteger(0);
 
         incomingAnnots.entrySet().parallelStream().forEach( entry -> {
             List<Annotation> annots = entry.getValue();
             annotCount.addAndGet(annots.size());
-            logStatus.debug((i.incrementAndGet()) + ". " + annotCount);
+            //logStatus.debug((i.incrementAndGet()) + ". " + annotCount);
             try {
                 process(counters, annots, entry.getKey());
             } catch(Exception e) {
@@ -343,7 +346,7 @@ public class CtdImporter {
             }
         });
 
-        logStatus.debug("INCOMING ANNOT DONE");
+        logStatus.debug("INCOMING ANNOTS DONE: "+annotCount);
 
         logStatus.info("LOAD ANNOTS OK -- elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
     }
