@@ -14,6 +14,8 @@ public class CtdAnnotNotesManager {
                 + (annot.getRefRgdId()!=null ? annot.getRefRgdId() : 0) + "~"
                 + annot.getEvidence() + "~"
                 + Utils.defaultString(annot.getWithInfo()) + "~"
-                + Utils.defaultString(annot.getQualifier());
+                + Utils.defaultString(annot.getQualifier()) + "~"
+                + Utils.defaultString(annot.getQualifier2()) + "~"
+                + Utils.defaultString(annot.getAssociatedWith());
     }
 }

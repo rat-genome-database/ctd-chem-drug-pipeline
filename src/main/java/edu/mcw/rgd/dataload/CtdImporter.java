@@ -5,6 +5,7 @@ import edu.mcw.rgd.datamodel.*;
 import edu.mcw.rgd.datamodel.ontology.Annotation;
 import edu.mcw.rgd.datamodel.ontologyx.Term;
 import edu.mcw.rgd.process.CounterPool;
+import edu.mcw.rgd.process.MemoryMonitor;
 import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
@@ -88,6 +89,9 @@ public class CtdImporter {
     public void run() throws Exception {
 
         logStatus.info(getVersion());
+
+        MemoryMonitor memoryMonitor = new MemoryMonitor();
+        memoryMonitor.start();
 
         startTimeStamp = new Date();
 
@@ -221,6 +225,9 @@ public class CtdImporter {
 
         logStatus.info(counters.dumpAlphabetically());
 
+        memoryMonitor.stop();
+        logStatus.info(memoryMonitor.getSummary());
+
         logStatus.info("--CTD Chemical Drug Interactions pipeline DONE --");
         logStatus.info("--elapsed time: "+Utils.formatElapsedTime(startTimeStamp.getTime(), System.currentTimeMillis()));
     }
@@ -310,18 +317,18 @@ public class CtdImporter {
 
             Annotation incomingAnnot = rec.incomingAnnots.get(i);
             String annotKey = CtdAnnotNotesManager.computeAnnotKey(incomingAnnot);
-            List<Annotation> annots = incomingAnnots.get(annotKey);
-            if( annots==null ) {
-                annots = Collections.synchronizedList(new ArrayList<Annotation>());
-                incomingAnnots.put(annotKey, annots);
-            }
+            List<Annotation> annots = incomingAnnots.computeIfAbsent(annotKey,
+                    k -> Collections.synchronizedList(new ArrayList<>()));
             annots.add(incomingAnnot);
 
-            List<Annotation> annotsInRgd = inRgdAnnots.get(annotKey);
-            if( annotsInRgd==null ) {
-                annotsInRgd = dao.getAnnotationsByAnnot(incomingAnnot);
-                inRgdAnnots.put(annotKey, annotsInRgd);
-            }
+            inRgdAnnots.computeIfAbsent(annotKey,
+                    k -> {
+                        try {
+                            return dao.getAnnotationsByAnnot(incomingAnnot);
+                        } catch(Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
         }
     }
 
@@ -360,7 +367,6 @@ public class CtdImporter {
 
         List<Annotation> mergedIncomingAnnots = mergeAnnots(incomingAnnots, getMaxXrefSourceLength());
 
-
         List<Annotation> annotsInRgd = inRgdAnnots.get(annotKey);
 
         for( Annotation annot: mergedIncomingAnnots ) {
@@ -373,7 +379,7 @@ public class CtdImporter {
                 // annotation has been inserted
                 counters.increment("ANNOTATIONS_" + annot.getEvidence() + "_INSERTED");
                 counters.increment("ANNOTATIONS_" + SpeciesType.getCommonName(annot.getSpeciesTypeKey()).toUpperCase() + "_INSERTED");
-                return;
+                continue;
             }
 
             logUpdatedAnnots.debug("RGD:" + annot.getAnnotatedObjectRgdId() + " " + annot.getTermAcc() + " " + annot.getXrefSource());
@@ -381,14 +387,20 @@ public class CtdImporter {
             counters.increment("ANNOTATIONS_" + SpeciesType.getCommonName(annot.getSpeciesTypeKey()).toUpperCase() + "_MATCHED");
 
             // find the annot in RGD with same xrefSource, if possible, for update
-            Annotation annotInRgd = annotsInRgd.get(0);
-            for (Annotation ann : annotsInRgd) {
+            int i;
+            Annotation annotInRgd = null;
+            for( i=0; i<annotsInRgd.size(); i++ ) {
+                Annotation ann = annotsInRgd.get(i);
                 if (Utils.stringsAreEqual(ann.getXrefSource(), annot.getXrefSource())) {
                     annotInRgd = ann;
                     break;
                 }
             }
-            annotsInRgd.remove(annotInRgd);
+            if( annotInRgd!=null ) {
+                annotsInRgd.remove(i);
+            } else {
+                annotInRgd = annotsInRgd.remove(0);
+            }
 
             // check if annotation notes and/or xref_source has to be updated
             if (Utils.stringsAreEqualIgnoreCase(annot.getNotes(), annotInRgd.getNotes())
@@ -412,64 +424,76 @@ public class CtdImporter {
 
     List<Annotation> mergeAnnots(List<Annotation> incomingAnnots, int maxXRefSourceLen) throws Exception {
 
-        List<Annotation> mergedAnnots = new ArrayList<>();
+        List<Annotation> results = new ArrayList<>();
+        int pos = 0;
 
-        // merge notes and xref_source for incoming annots
-        boolean processNextSplit = true;
-        for( int splits=1; processNextSplit; splits++ ) {
+        while( pos < incomingAnnots.size() ) {
 
-            if( splits>1 ) {
-                logStatus.debug("  xrefSourceSplitCount="+splits+" RGD:"+incomingAnnots.get(0).getAnnotatedObjectRgdId()
-                    +" "+incomingAnnots.get(0).getTermAcc()+" "+incomingAnnots.get(0).getTerm());
+            Annotation merged = (Annotation) incomingAnnots.get(pos).clone();
+            Set<String> noteSet = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            Set<String> pmidSet = new TreeSet<>();
+            addNotesAndPmids(incomingAnnots.get(pos), noteSet, pmidSet);
+            pos++;
+
+            while( pos < incomingAnnots.size() ) {
+                // test if next annotation can be merged without exceeding xrefSource limit
+                Set<String> testPmidSet = new TreeSet<>(pmidSet);
+                addPmids(incomingAnnots.get(pos), testPmidSet);
+                if( Utils.concatenate(testPmidSet, "|").length() > maxXRefSourceLen ) {
+                    break; // current merged annotation is complete
+                }
+                pmidSet = testPmidSet;
+                addNotes(incomingAnnots.get(pos), noteSet);
+                pos++;
             }
-            mergedAnnots.clear();
-            processNextSplit = false; // optimistically assume we can merge annotations in the current split (99% true)
 
-            int annotsInSplit = 1 + (incomingAnnots.size()/splits);
-
-            for( int i=0; i<incomingAnnots.size(); i+=annotsInSplit ) {
-                int toIndex = i+annotsInSplit;
-                if( toIndex>incomingAnnots.size() ) {
-                    toIndex = incomingAnnots.size();
+            merged.setNotes(Utils.concatenate(noteSet, "; "));
+            String xref = Utils.concatenate(pmidSet, "|");
+            if( xref.length() <= maxXRefSourceLen ) {
+                merged.setXrefSource(xref);
+                results.add(merged);
+            } else {
+                // single stage produced too-long xrefSource; split PMIDs into fitting chunks
+                StringBuilder sb = new StringBuilder();
+                for( String pmid : pmidSet ) {
+                    if( sb.length() > 0 && sb.length() + 1 + pmid.length() > maxXRefSourceLen ) {
+                        Annotation chunk = (Annotation) merged.clone();
+                        chunk.setXrefSource(sb.toString());
+                        results.add(chunk);
+                        sb.setLength(0);
+                    }
+                    if( sb.length() > 0 ) sb.append("|");
+                    sb.append(pmid);
                 }
-                Annotation annot = mergeAnnots(incomingAnnots.subList(i, toIndex));
-                if( annot.getXrefSource().length()<=maxXRefSourceLen ) {
-                    mergedAnnots.add(annot);
-                } else {
-                    processNextSplit = true;
-                    break; // too many PMIDs in XREF_SOURCE
-                }
+                merged.setXrefSource(sb.toString());
+                results.add(merged);
             }
         }
-        return mergedAnnots;
+
+        if( results.size() > 1 ) {
+            logStatus.debug("  xrefSourceSplitCount=" + results.size() + " RGD:" + incomingAnnots.get(0).getAnnotatedObjectRgdId()
+                    + " " + incomingAnnots.get(0).getTermAcc() + " " + incomingAnnots.get(0).getTerm());
+        }
+        return results;
     }
 
-    Annotation mergeAnnots(List<Annotation> incomingAnnots) throws Exception {
+    void addNotesAndPmids(Annotation ann, Set<String> noteSet, Set<String> pmidSet) {
+        addNotes(ann, noteSet);
+        addPmids(ann, pmidSet);
+    }
 
-        Annotation result = (Annotation) incomingAnnots.get(0).clone();
-
-        Set<String> noteSet = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        Set<String> pmidSet = new TreeSet<>();
-        for (Annotation ann : incomingAnnots) {
-
-            // multiple notes are split by "; "
-            String notes = ann.getNotes();
-            if (notes != null && !notes.isEmpty()) {
-                if (notes.contains("; ")) {
-                    logStatus.warn("**** NOTES CONTAINS '; '");
-                }
-                Collections.addAll(noteSet, notes.split("; "));
-            }
-
-            // multiple PMIDs are separated by '|'
-            String xrefSrc = ann.getXrefSource();
-            if (xrefSrc != null && !xrefSrc.isEmpty()) {
-                Collections.addAll(pmidSet, xrefSrc.split("[\\|]"));
-            }
+    void addNotes(Annotation ann, Set<String> noteSet) {
+        String notes = ann.getNotes();
+        if( notes != null && !notes.isEmpty() ) {
+            Collections.addAll(noteSet, notes.split("; "));
         }
-        result.setNotes(Utils.concatenate(noteSet, "; "));
-        result.setXrefSource(Utils.concatenate(pmidSet, "|"));
-        return result;
+    }
+
+    void addPmids(Annotation ann, Set<String> pmidSet) {
+        String xrefSrc = ann.getXrefSource();
+        if( xrefSrc != null && !xrefSrc.isEmpty() ) {
+            Collections.addAll(pmidSet, xrefSrc.split("\\|"));
+        }
     }
 
     void deleteObsoleteAnnotations(CounterPool counters) throws Exception {

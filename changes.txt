@@ -1,3 +1,13 @@
+Mar 13, 2026
+  annotation unique key: added qualifier2 and associatedWith fields
+  updated getAnnotationsByAnnot query to match by qualifier2 and associatedWith
+  fixed race condition in qcAnnots causing pipeline hang (replaced non-atomic get/put with computeIfAbsent)
+  simplified mergeAnnots: replaced retry loop with greedy sequential merging to fix infinite loop and improve performance
+  fixed mergeAnnots: handle single annotations with xrefSource exceeding DB column limit by splitting PMIDs into chunks
+  added memory usage monitoring
+  updated README.md with pipeline summary
+  updated dependencies
+
 Oct 27, 2025
   improved logging
 

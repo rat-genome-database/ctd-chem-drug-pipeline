@@ -302,11 +302,14 @@ public class CtdDAO {
             WHERE term_acc=? AND annotated_object_rgd_id=? AND evidence=? AND
               NVL(ref_rgd_id,0) = NVL(?,0) AND
               NVL(with_info,'*') = NVL(?,'*') AND
-              NVL(qualifier,'*') = NVL(?,'*')
+              NVL(qualifier,'*') = NVL(?,'*') AND
+              NVL(qualifier2,'*') = NVL(?,'*') AND
+              NVL(associated_with,'*') = NVL(?,'*')
             """;
 
         return annotationDAO.executeAnnotationQuery(query, annot.getTermAcc(), annot.getAnnotatedObjectRgdId(),
-                annot.getEvidence(), annot.getRefRgdId(), annot.getWithInfo(), annot.getQualifier());
+                annot.getEvidence(), annot.getRefRgdId(), annot.getWithInfo(), annot.getQualifier(),
+                annot.getQualifier2(), annot.getAssociatedWith());
     }
 
     public int updateLastModified(int fullAnnotKey) throws Exception{
