@@ -426,23 +426,42 @@ public class CtdImporter {
 
         List<Annotation> results = new ArrayList<>();
         int pos = 0;
+        int n = incomingAnnots.size();
 
-        while( pos < incomingAnnots.size() ) {
+        while( pos < n ) {
 
             Annotation merged = (Annotation) incomingAnnots.get(pos).clone();
             Set<String> noteSet = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
             Set<String> pmidSet = new TreeSet<>();
             addNotesAndPmids(incomingAnnots.get(pos), noteSet, pmidSet);
+            int xrefLen = joinedLength(pmidSet); // current length of '|'-joined pmidSet
             pos++;
 
-            while( pos < incomingAnnots.size() ) {
-                // test if next annotation can be merged without exceeding xrefSource limit
-                Set<String> testPmidSet = new TreeSet<>(pmidSet);
-                addPmids(incomingAnnots.get(pos), testPmidSet);
-                if( Utils.concatenate(testPmidSet, "|").length() > maxXRefSourceLen ) {
+            while( pos < n ) {
+                // project cost of merging the next annotation without copying pmidSet or concatenating
+                String xs = incomingAnnots.get(pos).getXrefSource();
+                List<String> toAdd = new ArrayList<>();
+                int projectedLen = xrefLen;
+                boolean overflow = false;
+                if( xs != null && !xs.isEmpty() ) {
+                    for( String p : xs.split("\\|") ) {
+                        if( pmidSet.contains(p) || toAdd.contains(p) ) {
+                            continue;
+                        }
+                        int sep = projectedLen > 0 ? 1 : 0;
+                        if( projectedLen + sep + p.length() > maxXRefSourceLen ) {
+                            overflow = true;
+                            break;
+                        }
+                        projectedLen += sep + p.length();
+                        toAdd.add(p);
+                    }
+                }
+                if( overflow ) {
                     break; // current merged annotation is complete
                 }
-                pmidSet = testPmidSet;
+                pmidSet.addAll(toAdd);
+                xrefLen = projectedLen;
                 addNotes(incomingAnnots.get(pos), noteSet);
                 pos++;
             }
@@ -453,7 +472,7 @@ public class CtdImporter {
                 merged.setXrefSource(xref);
                 results.add(merged);
             } else {
-                // single stage produced too-long xrefSource; split PMIDs into fitting chunks
+                // single annotation's own pmids exceed limit; split into fitting chunks
                 StringBuilder sb = new StringBuilder();
                 for( String pmid : pmidSet ) {
                     if( sb.length() > 0 && sb.length() + 1 + pmid.length() > maxXRefSourceLen ) {
@@ -470,11 +489,20 @@ public class CtdImporter {
             }
         }
 
-        if( results.size() > 1 ) {
-            logStatus.debug("  xrefSourceSplitCount=" + results.size() + " RGD:" + incomingAnnots.get(0).getAnnotatedObjectRgdId()
-                    + " " + incomingAnnots.get(0).getTermAcc() + " " + incomingAnnots.get(0).getTerm());
+        if( incomingAnnots.size() > 1 && results.size() < incomingAnnots.size() ) {
+            Annotation first = incomingAnnots.get(0);
+            logStatus.debug("  merged " + incomingAnnots.size() + "->" + results.size()
+                    + " RGD:" + first.getAnnotatedObjectRgdId()
+                    + " " + first.getTermAcc() + " " + first.getTerm());
         }
         return results;
+    }
+
+    private int joinedLength(Set<String> pmidSet) {
+        if( pmidSet.isEmpty() ) return 0;
+        int len = pmidSet.size() - 1; // separators
+        for( String p : pmidSet ) len += p.length();
+        return len;
     }
 
     void addNotesAndPmids(Annotation ann, Set<String> noteSet, Set<String> pmidSet) {
