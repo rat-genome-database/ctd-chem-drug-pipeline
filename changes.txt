@@ -1,3 +1,6 @@
+May 12, 2026
+  improved end-of-run log readability; updated dependencies
+
 Apr 14, 2026
   mergeAnnots: replaced O(N^2) testPmidSet copy + concatenate with incremental xref length tracking
   removed noisy per-bucket xrefSourceSplitCount debug log; added concise 'merged in->out' debug line emitted only when merging actually reduced the bucket

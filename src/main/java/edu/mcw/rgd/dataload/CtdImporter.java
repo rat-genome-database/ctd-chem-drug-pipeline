@@ -228,8 +228,7 @@ public class CtdImporter {
         memoryMonitor.stop();
         logStatus.info(memoryMonitor.getSummary());
 
-        logStatus.info("--CTD Chemical Drug Interactions pipeline DONE --");
-        logStatus.info("--elapsed time: "+Utils.formatElapsedTime(startTimeStamp.getTime(), System.currentTimeMillis()));
+        logStatus.info("=== OK ===  elapsed  "+Utils.formatElapsedTime(startTimeStamp.getTime(), System.currentTimeMillis())+"\n");
     }
 
 
@@ -605,10 +604,10 @@ public class CtdImporter {
 
     void dumpTotalNotesLength(String statName) throws Exception {
         long totalLength = dao.getTotalNotesLengthForChebiAnnotations();
-        logStatus.info("TOTAL_NOTES_LENGTH_"+statName+": "+Utils.formatThousands(totalLength)+" bytes");
+        counters.add("TOTAL_NOTES_LENGTH_"+statName, (int)totalLength);
 
         totalLength = dao.getTotalXRefSourceLengthForChebiAnnotations();
-        logStatus.info("TOTAL_XREF_SOURCE_LENGTH_"+statName+": "+Utils.formatThousands(totalLength)+" bytes");
+        counters.add("TOTAL_XREF_SOURCE_LENGTH_"+statName, (int)totalLength);
     }
 
     public void setAspect(String aspect) {
