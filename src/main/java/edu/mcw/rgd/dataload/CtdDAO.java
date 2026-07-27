@@ -218,7 +218,7 @@ public class CtdDAO {
      * @return List of Gene objects being homolog to given gene; empty list if there are no homologs available or if gene rgd id is invalid
      * @throws Exception when unexpected error in spring framework occurs
      */
-    synchronized public List<Gene> getRatMouseHumanHomologs(int rgdId) throws Exception {
+    public List<Gene> getRatMouseHumanHomologs(int rgdId) throws Exception {
 
         // first get homologs from cache
         List<Gene> homologs = _homologCache.get(rgdId);
@@ -228,18 +228,14 @@ public class CtdDAO {
         // not in cache -- get homologs from database
         homologs = geneDAO.getHomologs(rgdId);
 
-        // limit homologs to rat,mouse, human
-        Iterator<Gene> it = homologs.iterator();
-        while( it.hasNext() ) {
-            Gene gene = it.next();
-            if( gene.getSpeciesTypeKey()>3 )
-                it.remove();
-        }
+        // limit homologs to rat, mouse, human
+        homologs.removeIf( gene -> gene.getSpeciesTypeKey()>3 );
 
-        _homologCache.put(rgdId, homologs);
-        return homologs;
+        // two threads may compute the same rgdId concurrently; keep whichever was cached first
+        List<Gene> cached = _homologCache.putIfAbsent(rgdId, homologs);
+        return cached!=null ? cached : homologs;
     }
-    private Map<Integer, List<Gene>> _homologCache = new HashMap<>(40003);
+    private final Map<Integer, List<Gene>> _homologCache = new ConcurrentHashMap<>(40003);
 
 
     /**
@@ -248,7 +244,7 @@ public class CtdDAO {
      * @return List of Gene objects being homolog to given gene; empty list if there are no homologs available or if gene rgd id is invalid
      * @throws Exception when unexpected error in spring framework occurs
      */
-    synchronized public List<Gene> getHomologs(int rgdId, int speciesTypeKey) throws Exception {
+    public List<Gene> getHomologs(int rgdId, int speciesTypeKey) throws Exception {
 
         return geneDAO.getActiveOrthologs(rgdId, speciesTypeKey);
     }

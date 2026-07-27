@@ -1,3 +1,10 @@
+Jul 27, 2026
+  switched file downloads to FileDownloader2 (java.net.http based) from rgdcore
+  CTD source URLs now use https instead of http
+  dropped unused dependencies: commons-net, httpclient, xom
+  de-synchronized rat/mouse/human homolog cache for better parallelism
+  updated dependencies
+
 May 12, 2026
   improved end-of-run log readability; updated dependencies
 

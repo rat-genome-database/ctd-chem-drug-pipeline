@@ -3,7 +3,7 @@ package edu.mcw.rgd.dataload;
 import edu.mcw.rgd.datamodel.SpeciesType;
 import edu.mcw.rgd.datamodel.ontologyx.Term;
 import edu.mcw.rgd.process.CounterPool;
-import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.FileDownloader2;
 import edu.mcw.rgd.process.Utils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
@@ -43,7 +43,7 @@ public class CtdParser {
 
         List<CtdRecord> ctdRecords = new ArrayList<>();
 
-        FileDownloader downloader = new FileDownloader();
+        FileDownloader2 downloader = new FileDownloader2();
         downloader.setExternalFile(getChemGeneInteractionsFile());
         downloader.setLocalFile("data/chem_gene_ixns.tsv.gz");
         downloader.setPrependDateStamp(true);
@@ -57,7 +57,7 @@ public class CtdParser {
             if( line.startsWith("#") )
                 continue;
             // break into columns
-            String cols[] = line.split("\\t", -1);
+            String[] cols = line.split("\\t", -1);
             if( cols.length==11 ) {
 
                 String chemicalId = "MESH:"+cols[1];
@@ -153,7 +153,7 @@ public class CtdParser {
 
     public void downloadChemicals(MultiValuedMap mapCasRNToChebiTerm, MultiValuedMap mapMeshToChebi, CtdDAO dao, CounterPool counters) throws Exception {
 
-        FileDownloader downloader = new FileDownloader();
+        FileDownloader2 downloader = new FileDownloader2();
         downloader.setExternalFile(getChemicalsFile());
         downloader.setLocalFile("data/chemicals.tsv.gz");
         downloader.setPrependDateStamp(true);
@@ -175,7 +175,7 @@ public class CtdParser {
             if( line.startsWith("#") )
                 continue;
             // break into columns
-            String cols[] = line.split("\\t", -1);
+            String[] cols = line.split("\\t", -1);
             if( cols.length>=8 ) {
                 CtdChemical chemical = new CtdChemical();
                 chemical.setChemicalName(cols[0]);

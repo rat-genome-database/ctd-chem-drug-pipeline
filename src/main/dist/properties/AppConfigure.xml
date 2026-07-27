@@ -5,7 +5,7 @@
 	</bean>
 
     <bean id="ctdImporter" class="edu.mcw.rgd.dataload.CtdImporter">
-        <property name="version" value="ctd-chem-drug-pipeline -- build May 12, 2026" />
+        <property name="version" value="ctd-chem-drug-pipeline -- build Jul 27, 2026" />
         <property name="parser" ref="ctdParser" />
         <property name="obsoleteAnnotLimit" value="500000" />
         <property name="aspect" value="E" />
@@ -19,8 +19,8 @@
     </bean>
 
     <bean id="ctdParser" class="edu.mcw.rgd.dataload.CtdParser">
-        <property name="chemicalsFile" value="http://ctdbase.org/reports/CTD_chemicals.tsv.gz" />
-        <property name="chemGeneInteractionsFile" value="http://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz" />
+        <property name="chemicalsFile" value="https://ctdbase.org/reports/CTD_chemicals.tsv.gz" />
+        <property name="chemGeneInteractionsFile" value="https://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz" />
     </bean>
 </beans>
 
