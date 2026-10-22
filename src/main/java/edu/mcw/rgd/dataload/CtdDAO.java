@@ -296,11 +296,11 @@ public class CtdDAO {
         String query = """
             SELECT * FROM full_annot
             WHERE term_acc=? AND annotated_object_rgd_id=? AND evidence=? AND
-              NVL(ref_rgd_id,0) = NVL(?,0) AND
-              NVL(with_info,'*') = NVL(?,'*') AND
-              NVL(qualifier,'*') = NVL(?,'*') AND
-              NVL(qualifier2,'*') = NVL(?,'*') AND
-              NVL(associated_with,'*') = NVL(?,'*')
+              COALESCE(ref_rgd_id,0) = COALESCE(?,0) AND
+              COALESCE(with_info,'*') = COALESCE(?,'*') AND
+              COALESCE(qualifier,'*') = COALESCE(?,'*') AND
+              COALESCE(qualifier2,'*') = COALESCE(?,'*') AND
+              COALESCE(associated_with,'*') = COALESCE(?,'*')
             """;
 
         return annotationDAO.executeAnnotationQuery(query, annot.getTermAcc(), annot.getAnnotatedObjectRgdId(),
@@ -326,7 +326,7 @@ public class CtdDAO {
     }
 
     public int updateAnnotationNotesAndXRefSource(int fullAnnotKey, String notes, String xrefSource) throws Exception {
-        String sql = "UPDATE full_annot SET xref_source=?,last_modified_date=SYSDATE,notes=? WHERE full_annot_key=?";
+        String sql = "UPDATE full_annot SET xref_source=?,last_modified_date=LOCALTIMESTAMP(0),notes=? WHERE full_annot_key=?";
         return annotationDAO.update(sql, xrefSource, notes, fullAnnotKey);
     }
 
@@ -355,7 +355,7 @@ public class CtdDAO {
     }
 
     public long getTotalNotesLengthForChebiAnnotations() throws Exception {
-        String sql = "SELECT SUM(dbms_lob.getlength(notes)) FROM full_annot WHERE aspect='E'";
+        String sql = "SELECT SUM(LENGTH(notes)) FROM full_annot WHERE aspect='E'";
         return annotationDAO.getLongCount(sql);
     }
 
