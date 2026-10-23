@@ -297,10 +297,10 @@ public class CtdDAO {
             SELECT * FROM full_annot
             WHERE term_acc=? AND annotated_object_rgd_id=? AND evidence=? AND
               COALESCE(ref_rgd_id,0) = COALESCE(?,0) AND
-              COALESCE(with_info,'*') = COALESCE(?,'*') AND
-              COALESCE(qualifier,'*') = COALESCE(?,'*') AND
-              COALESCE(qualifier2,'*') = COALESCE(?,'*') AND
-              COALESCE(associated_with,'*') = COALESCE(?,'*')
+              COALESCE(NULLIF(with_info,''),'*') = COALESCE(NULLIF(?,''),'*') AND
+              COALESCE(NULLIF(qualifier,''),'*') = COALESCE(NULLIF(?,''),'*') AND
+              COALESCE(NULLIF(qualifier2,''),'*') = COALESCE(NULLIF(?,''),'*') AND
+              COALESCE(NULLIF(associated_with,''),'*') = COALESCE(NULLIF(?,''),'*')
             """;
 
         return annotationDAO.executeAnnotationQuery(query, annot.getTermAcc(), annot.getAnnotatedObjectRgdId(),
